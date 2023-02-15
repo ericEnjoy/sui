@@ -8,7 +8,7 @@ use crypto::{NetworkPublicKey, PublicKey, Signature};
 use fastcrypto::signature_service::SignatureService;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
-use mysten_metrics::{monitored_future, spawn_logged_monitored_task};
+use mysten_metrics::{monitored_future, monitored_scope, spawn_logged_monitored_task};
 use network::anemo_ext::NetworkExt;
 use std::time::Duration;
 use std::{sync::Arc, time::Instant};

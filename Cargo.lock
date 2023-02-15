@@ -5454,6 +5454,7 @@ dependencies = [
  "narwhal-config",
  "narwhal-consensus",
  "narwhal-crypto",
+ "narwhal-dag",
  "narwhal-executor",
  "narwhal-network",
  "narwhal-node",

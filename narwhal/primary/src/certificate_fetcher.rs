@@ -5,13 +5,15 @@ use crate::{metrics::PrimaryMetrics, synchronizer::Synchronizer};
 use anemo::Network;
 use config::Committee;
 use crypto::{NetworkPublicKey, PublicKey};
+use dag::node_dag::Affiliated;
+use fastcrypto::hash::Hash;
 use futures::{stream::FuturesUnordered, StreamExt};
 use itertools::Itertools;
 use mysten_metrics::{monitored_future, monitored_scope, spawn_logged_monitored_task};
 use network::PrimaryToPrimaryRpc;
 use rand::{rngs::ThreadRng, seq::SliceRandom};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     sync::Arc,
     time::Duration,
 };

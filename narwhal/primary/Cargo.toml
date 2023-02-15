@@ -39,6 +39,7 @@ tap = "1.0.1"
 consensus = { path = "../consensus", package = "narwhal-consensus" }
 fastcrypto.workspace = true
 crypto = { path = "../crypto", package = "narwhal-crypto" }
+dag = { path = "../dag", package = "narwhal-dag" }
 network = { path = "../network", package = "narwhal-network" }
 types = { path = "../types", package = "narwhal-types" }
 storage = { path = "../storage", package = "narwhal-storage" }
