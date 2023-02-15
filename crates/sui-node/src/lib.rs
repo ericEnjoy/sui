@@ -19,6 +19,7 @@ use narwhal_network::metrics::{NetworkConnectionMetrics, NetworkMetrics};
 use prometheus::Registry;
 use std::collections::HashMap;
 use std::fmt;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use sui_config::{ConsensusConfig, NodeConfig};
@@ -64,6 +65,7 @@ pub mod metrics;
 pub use handle::SuiNodeHandle;
 use narwhal_config::SharedWorkerCache;
 use narwhal_types::TransactionsClient;
+use sui_config::node::DBCheckpointConfig;
 use sui_core::authority::authority_per_epoch_store::{
     AuthorityPerEpochStore, EpochStartConfiguration,
 };
@@ -238,7 +240,15 @@ impl SuiNode {
         let (p2p_network, discovery_handle, state_sync_handle) =
             Self::create_p2p_network(&config, state_sync_store, &prometheus_registry)?;
 
-        // Create Authority State
+        let db_checkpoint_config = if config.db_checkpoint_config.checkpoint_path.is_none() {
+            DBCheckpointConfig {
+                checkpoint_path: Some(config.db_checkpoint_path()),
+                ..config.db_checkpoint_config
+            }
+        } else {
+            config.db_checkpoint_config.clone()
+        };
+
         let state = AuthorityState::new(
             config.protocol_public_key(),
             secret,
@@ -253,10 +263,9 @@ impl SuiNode {
             config.authority_store_pruning_config,
             genesis.objects(),
             config.epoch_duration_ms,
-            &config.state_snapshot_config,
+            &db_checkpoint_config,
         )
         .await;
-
         // ensure genesis txn was executed
         if epoch_store.epoch() == 0 {
             let txn = &genesis.transaction();
@@ -283,7 +292,7 @@ impl SuiNode {
                 TransactiondOrchestrator::new_with_network_clients(
                     state.clone(),
                     receiver,
-                    config.db_path(),
+                    &config.db_path(),
                     &prometheus_registry,
                 )
                 .await?,
@@ -379,6 +388,10 @@ impl SuiNode {
 
     pub fn current_epoch_for_testing(&self) -> EpochId {
         self.state.current_epoch_for_testing()
+    }
+
+    pub fn db_checkpoint_path(&self) -> PathBuf {
+        self.config.db_checkpoint_path()
     }
 
     // Init reconfig process by starting to reject user certs
