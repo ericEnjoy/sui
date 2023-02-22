@@ -6,7 +6,7 @@ use config::{Committee, Epoch, SharedWorkerCache, WorkerId};
 use consensus::dag::Dag;
 use crypto::{NetworkPublicKey, PublicKey};
 use fastcrypto::hash::Hash as _;
-use mysten_metrics::spawn_monitored_task;
+use mysten_metrics::{monitored_scope, spawn_monitored_task};
 use network::{anemo_ext::NetworkExt, RetryConfig};
 use parking_lot::Mutex;
 use std::{
@@ -357,6 +357,7 @@ impl Synchronizer {
 
     /// Checks if the certificate is valid and can potentially be accepted into the DAG.
     pub fn sanitize_certificate(&self, certificate: &Certificate) -> DagResult<()> {
+        let _certificate_sanitization = monitored_scope("CertificateSanitization");
         ensure!(
             self.inner.committee.epoch() == certificate.epoch(),
             DagError::InvalidEpoch {
@@ -382,6 +383,7 @@ impl Synchronizer {
         network: &Network,
         sanitize: bool,
     ) -> DagResult<()> {
+        let process_certificate_internal = monitored_scope("ProcessCertificateInternal");
         let digest = certificate.digest();
         if self.inner.certificate_store.contains(&digest)? {
             trace!("Certificate {digest:?} has already been processed. Skip processing.");
@@ -475,10 +477,13 @@ impl Synchronizer {
             )))));
         }
 
+        drop(process_certificate_internal);
+
         self.accept_certificate_internal(certificate).await
     }
 
     async fn accept_certificate_internal(&self, certificate: Certificate) -> DagResult<()> {
+        let accept_certificate_internal = monitored_scope("AcceptCertificateInternal");
         let digest = certificate.digest();
 
         // This lock must be held for the scope of the function, to ensure the operations to write
@@ -514,6 +519,8 @@ impl Synchronizer {
             .with_label_values(&[certificate_source])
             .inc();
 
+        let append_certificate_in_aggregator = monitored_scope("AppendCertificateInAggregator");
+
         // Append the certificate to the aggregator of the
         // corresponding round.
         if let Err(e) = self
@@ -528,6 +535,10 @@ impl Synchronizer {
             return Err(DagError::ShuttingDown);
         }
 
+        drop(append_certificate_in_aggregator);
+
+        let send_to_consensus_layer = monitored_scope("SendToconsensusLayer");
+
         // Send it to the consensus layer.
         if let Err(e) = self.inner.tx_new_certificates.send(certificate).await {
             warn!(
@@ -537,10 +548,14 @@ impl Synchronizer {
             return Err(DagError::ShuttingDown);
         }
 
+        drop(send_to_consensus_layer);
+
         if let Some(sender) = pending.remove(&digest) {
             // Ignore error if there is no more listeners.
             let _ = sender.send(());
         }
+
+        drop(accept_certificate_internal);
 
         Ok(())
     }
