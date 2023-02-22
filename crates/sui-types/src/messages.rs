@@ -2461,6 +2461,21 @@ pub enum VerifiedTransactionInfoResponse {
     ),
 }
 
+#[derive(Clone, Debug)]
+pub enum PlainTransactionInfoResponse {
+    Signed(SignedTransaction),
+    ExecutedWithCert(
+        VerifiedCertificate,
+        SignedTransactionEffects,
+        TransactionEvents,
+    ),
+    ExecutedWithoutCert(
+        VerifiedTransaction,
+        SignedTransactionEffects,
+        TransactionEvents,
+    ),
+}
+
 impl VerifiedTransactionInfoResponse {
     pub fn is_executed(&self) -> bool {
         match self {
@@ -2481,6 +2496,12 @@ pub struct HandleCertificateResponse {
 #[derive(Clone, Debug)]
 pub struct VerifiedHandleCertificateResponse {
     pub signed_effects: VerifiedSignedTransactionEffects,
+    pub events: TransactionEvents,
+}
+
+#[derive(Clone, Debug)]
+pub struct PlainHandleCertificateResponse {
+    pub signed_effects: SignedTransactionEffects,
     pub events: TransactionEvents,
 }
 

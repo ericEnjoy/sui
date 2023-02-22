@@ -16,9 +16,10 @@ use sui_config::{NetworkConfig, ValidatorInfo};
 use sui_network::{
     default_mysten_network_config, DEFAULT_CONNECT_TIMEOUT_SEC, DEFAULT_REQUEST_TIMEOUT_SEC,
 };
-use sui_types::crypto::{AuthorityPublicKeyBytes, AuthoritySignInfo};
+use sui_types::crypto::{AuthorityPublicKeyBytes, AuthoritySignInfo, AuthoritySignInfoTrait};
 use sui_types::error::UserInputError;
 use sui_types::fp_ensure;
+use sui_types::intent::{Intent, IntentScope};
 use sui_types::message_envelope::Message;
 use sui_types::object::Object;
 use sui_types::sui_system_state::{SuiSystemStateInnerBenchmark, SuiSystemStateTrait};
@@ -1007,20 +1008,20 @@ where
         &self,
         tx_digest: &TransactionDigest,
         state: &mut ProcessTransactionState,
-        response: SuiResult<VerifiedTransactionInfoResponse>,
+        response: SuiResult<PlainTransactionInfoResponse>,
         name: AuthorityName,
         weight: StakeUnit,
     ) -> SuiResult<Option<ProcessTransactionResult>> {
         match response {
-            Ok(VerifiedTransactionInfoResponse::Signed(signed)) => {
+            Ok(PlainTransactionInfoResponse::Signed(signed)) => {
                 debug!(?tx_digest, name=?name.concise(), weight, "Received signed transaction from validator handle_transaction");
-                self.handle_transaction_response_with_signed(state, signed)
+                self.handle_transaction_response(state, signed)
             }
-            Ok(VerifiedTransactionInfoResponse::ExecutedWithCert(cert, effects, events)) => {
+            Ok(PlainTransactionInfoResponse::ExecutedWithCert(cert, effects, events)) => {
                 debug!(?tx_digest, name=?name.concise(), weight, "Received prev certificate and effects from validator handle_transaction");
                 self.handle_transaction_response_with_executed(state, Some(cert), effects, events)
             }
-            Ok(VerifiedTransactionInfoResponse::ExecutedWithoutCert(_, effects, events)) => {
+            Ok(PlainTransactionInfoResponse::ExecutedWithoutCert(_, effects, events)) => {
                 debug!(?tx_digest, name=?name.concise(), weight, "Received prev effects from validator handle_transaction");
                 self.handle_transaction_response_with_executed(state, None, effects, events)
             }
@@ -1053,20 +1054,53 @@ where
         }
     }
 
-    fn handle_transaction_response_with_signed(
+    fn handle_transaction_response(
         &self,
         state: &mut ProcessTransactionState,
-        signed_transaction: VerifiedSignedTransaction,
+        plain_tx: SignedTransaction,
     ) -> SuiResult<Option<ProcessTransactionResult>> {
-        let (data, sig) = signed_transaction.into_inner().into_data_and_sig();
+        let (data, sig) = plain_tx.into_data_and_sig();
         match state.tx_signatures.insert(sig) {
             InsertResult::NotEnoughVotes => Ok(None),
             InsertResult::Failed { error } => Err(error),
             InsertResult::QuorumReached(cert_sig) => {
-                let ct = CertifiedTransaction::new_from_data_and_sig(data, cert_sig);
-                Ok(Some(ProcessTransactionResult::Certified(
-                    ct.verify(&self.committee)?,
-                )))
+                let ct = CertifiedTransaction::new_from_data_and_sig(data.clone(), cert_sig);
+                let res = ct.verify(&self.committee);
+                match res {
+                    // If the aggregated signature verifies ok, then returns the ceritified transaction.
+                    Ok(ct) => Ok(Some(ProcessTransactionResult::Certified(ct))),
+                    Err(_) => {
+                        debug!(
+                            "Fail to verify the aggregated siganture for tx: {:?}",
+                            data.digest()
+                        );
+                        // If the aggregated signature fails to verify, iterate through all signatures and verify individually.
+                        // Increment the bad stake and continue to find new stake to reach the quorum.
+                        //
+                        // TODO(joyqvq): It is possible for the aggregated signature to fail every time when the last one
+                        // single signauture fails to verify repeatedly, and trigger this for loop to run. This can be
+                        // optimized by caching single sigs that are already verified and only verify the net new ones.
+                        // Same for [fn handle_transaction_response_with_executed].
+                        for (name, s) in &state.tx_signatures.clone().data {
+                            if let Err(err) = s.verify_secure(
+                                &data,
+                                Intent::default().with_scope(IntentScope::SenderSignedTransaction),
+                                state.tx_signatures.committee(),
+                            ) {
+                                // TODO(joyqvq): Currently, the aggregator cannot do much with an authority that always
+                                // return an invalid signature other than printing a warning. It is possible to add the
+                                // authority to a denylist or use other ways to punish the byzantine authority.
+                                // Same for [fn handle_transaction_response_with_executed].
+                                let w = state.tx_signatures.committee().weight(name);
+                                warn!(name=?name.concise(), w, "Bad stake from validator: {:?}", err);
+                                state.bad_stake += w;
+                                state.errors.push((err, vec![*name], w));
+                                state.tx_signatures.data.remove_entry(name);
+                            };
+                        }
+                        Ok(None)
+                    }
+                }
             }
         }
     }
@@ -1075,7 +1109,7 @@ where
         &self,
         state: &mut ProcessTransactionState,
         certificate: Option<VerifiedCertificate>,
-        signed_effects: VerifiedSignedTransactionEffects,
+        plain_tx_effects: SignedTransactionEffects,
         events: TransactionEvents,
     ) -> SuiResult<Option<ProcessTransactionResult>> {
         match certificate {
@@ -1089,17 +1123,43 @@ where
                 // If we get 2f+1 effects, it's a proof that the transaction
                 // has already been finalized. This works because validators would re-sign effects for transactions
                 // that were finalized in previous epochs.
-                let (effects, sig) = signed_effects.into_inner().into_data_and_sig();
+                let (effects, sig) = plain_tx_effects.into_data_and_sig();
                 match state.effects_map.insert(effects.digest(), &effects, sig) {
                     InsertResult::NotEnoughVotes => Ok(None),
                     InsertResult::Failed { error } => Err(error),
                     InsertResult::QuorumReached(cert_sig) => {
-                        let ct =
-                            CertifiedTransactionEffects::new_from_data_and_sig(effects, cert_sig);
-                        Ok(Some(ProcessTransactionResult::Executed(
-                            ct.verify(&self.committee)?,
-                            events,
-                        )))
+                        let ct = CertifiedTransactionEffects::new_from_data_and_sig(
+                            effects.clone(),
+                            cert_sig,
+                        );
+                        match ct.verify(&self.committee) {
+                            Ok(eff) => Ok(Some(ProcessTransactionResult::Executed(eff, events))),
+                            Err(_) => {
+                                debug!(
+                                    "Fail to verify the aggregated siganture for tx effects: {:?}",
+                                    effects.digest()
+                                );
+                                let map = state
+                                    .effects_map
+                                    .stake_maps
+                                    .get(&effects.digest())
+                                    .ok_or(SuiError::InvalidTransactionDigest)?;
+                                for (name, auth_sig) in &map.1.data {
+                                    if let Err(e) = auth_sig.verify_secure(
+                                        &effects,
+                                        Intent::default()
+                                            .with_scope(IntentScope::TransactionEffects),
+                                        state.tx_signatures.committee(),
+                                    ) {
+                                        let w = state.tx_signatures.committee().weight(name);
+                                        warn!(name=?name.concise(), w, "Bad stake from validator: {:?}", e);
+                                        state.bad_stake += w;
+                                        state.errors.push((e, vec![*name], w));
+                                    };
+                                }
+                                Ok(None)
+                            }
+                        }
                     }
                 }
             }
@@ -1225,11 +1285,11 @@ where
         &self,
         tx_digest: &TransactionDigest,
         state: &mut ProcessCertificateState,
-        response: SuiResult<VerifiedHandleCertificateResponse>,
+        response: SuiResult<PlainHandleCertificateResponse>,
         name: AuthorityName,
     ) -> SuiResult<Option<(VerifiedCertifiedTransactionEffects, TransactionEvents)>> {
         match response {
-            Ok(VerifiedHandleCertificateResponse {
+            Ok(PlainHandleCertificateResponse {
                 signed_effects,
                 events,
             }) => {
@@ -1238,7 +1298,6 @@ where
                     name = ?name.concise(),
                     "Validator handled certificate successfully",
                 );
-                let signed_effects = signed_effects.into_inner();
                 // Note: here we aggregate votes by the hash of the effects structure
                 match state.effects_map.insert(
                     (signed_effects.epoch(), *signed_effects.digest()),
@@ -1249,17 +1308,42 @@ where
                     InsertResult::Failed { error } => Err(error),
                     InsertResult::QuorumReached(cert_sig) => {
                         let ct = CertifiedTransactionEffects::new_from_data_and_sig(
-                            signed_effects.into_data(),
+                            signed_effects.clone().into_data(),
                             cert_sig,
                         );
-                        ct.verify(&self.committee).map(|ct| {
-                            debug!(?tx_digest, "Got quorum for validators handle_certificate.");
-                            Some((ct, events))
-                        })
+                        let res = ct.verify(&self.committee);
+                        match res {
+                            Ok(ct) => Ok(Some((ct, events))),
+                            Err(_) => {
+                                warn!(
+                                    "Fail to verify the aggregated siganture for tx effect: {:?}",
+                                    signed_effects.digest()
+                                );
+                                let map = state
+                                    .effects_map
+                                    .stake_maps
+                                    .get(&(signed_effects.epoch(), *signed_effects.digest()))
+                                    .ok_or(SuiError::InvalidTransactionDigest)?;
+                                for (name, auth_sig) in &map.1.data {
+                                    if let Err(err) = auth_sig.verify_secure(
+                                        &signed_effects,
+                                        Intent::default()
+                                            .with_scope(IntentScope::TransactionEffects),
+                                        map.1.committee(),
+                                    ) {
+                                        let w = map.1.committee().weight(name);
+                                        warn!(name=?name.concise(), w, "Bad stake from validator: {:?}", err);
+                                        state.bad_stake += w;
+                                        state.errors.push((err, vec![*name], w));
+                                    }
+                                }
+                                Ok(None)
+                            }
+                        }
                     }
                 }
             }
-            Err(err) => Err(err),
+            Err(e) => Err(e),
         }
     }
 

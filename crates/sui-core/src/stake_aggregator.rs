@@ -12,9 +12,9 @@ use sui_types::error::SuiError;
 
 /// StakeAggregator allows us to keep track of the total stake of a set of validators.
 /// STRENGTH indicates whether we want a strong quorum (2f+1) or a weak quorum (f+1).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct StakeAggregator<S, const STRENGTH: bool> {
-    data: HashMap<AuthorityName, S>,
+    pub data: HashMap<AuthorityName, S>,
     total_votes: StakeUnit,
     committee: Arc<Committee>,
 }
@@ -145,7 +145,7 @@ impl<CertT> InsertResult<CertT> {
 #[derive(Debug)]
 pub struct MultiStakeAggregator<K, V, const STRENGTH: bool> {
     committee: Arc<Committee>,
-    stake_maps: HashMap<K, (V, StakeAggregator<AuthoritySignInfo, STRENGTH>)>,
+    pub stake_maps: HashMap<K, (V, StakeAggregator<AuthoritySignInfo, STRENGTH>)>,
 }
 
 impl<K, V, const STRENGTH: bool> MultiStakeAggregator<K, V, STRENGTH> {

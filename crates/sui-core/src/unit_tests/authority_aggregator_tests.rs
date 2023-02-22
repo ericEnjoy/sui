@@ -3,14 +3,18 @@
 
 use crate::test_utils::make_transfer_sui_transaction;
 use move_core_types::{account_address::AccountAddress, ident_str};
+use rand::rngs::StdRng;
+use rand::SeedableRng;
 use std::collections::BTreeMap;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use sui_framework_build::compiled_package::BuildConfig;
+use sui_types::crypto::get_key_pair_from_rng;
 use sui_types::crypto::{get_key_pair, AccountKeyPair, AuthorityKeyPair};
 use sui_types::crypto::{AuthoritySignature, Signer};
 use sui_types::crypto::{KeypairTraits, Signature};
+use sui_types::utils::create_fake_transaction;
 
 use sui_macros::sim_test;
 use sui_types::messages::*;
@@ -228,7 +232,7 @@ where
         .await
         .unwrap()
         .signed_effects
-        .into_message()
+        .into_data()
 }
 
 pub async fn do_cert_configurable<A>(authority: &A, cert: &CertifiedTransaction)
@@ -858,6 +862,74 @@ async fn test_handle_transaction_response() {
         |e| matches!(e, SuiError::WrongEpoch { expected_epoch, actual_epoch } if *expected_epoch == 0 && *actual_epoch == 1)
     )
     .await;
+}
+
+#[tokio::test]
+async fn test_byzantine_authority_sig_aggregation() {
+    telemetry_subscribers::init_for_testing();
+    // 2f+1 = 3
+    assert!(run_aggregator(1, 4).await.is_ok());
+    assert!(run_aggregator(2, 4).await.is_err());
+    // 2f+1 = 5
+    assert!(run_aggregator(1, 6).await.is_ok());
+    assert!(run_aggregator(2, 6).await.is_err());
+}
+
+async fn run_aggregator(
+    num_byzantines: u8,
+    num_authorities: u8,
+) -> Result<ProcessTransactionResult, QuorumSignTransactionError> {
+    let tx = create_fake_transaction();
+    let mut authorities = BTreeMap::new();
+    let mut clients = BTreeMap::new();
+    let mut authority_keys = Vec::new();
+    let mut byzantines = Vec::new();
+
+    for i in 0..num_byzantines {
+        let byzantine =
+            get_key_pair_from_rng::<AuthorityKeyPair, StdRng>(&mut StdRng::from_seed([i; 32]))
+                .1
+                .public()
+                .into();
+        byzantines.push(byzantine);
+    }
+
+    for i in 0..num_authorities {
+        let (_, sec): (_, AuthorityKeyPair) =
+            get_key_pair_from_rng(&mut StdRng::from_seed([i; 32]));
+        let name: AuthorityName = sec.public().into();
+        authorities.insert(name, 1);
+        authority_keys.push((name, sec));
+        clients.insert(name, HandleTransactionTestAuthorityClient::new());
+    }
+
+    for (name, secret) in &authority_keys {
+        let auth_signature = if byzantines.contains(name) {
+            AuthoritySignInfo::new(
+                0,
+                tx.clone().data(),
+                Intent::default().with_scope(IntentScope::ProofOfPossession), // bad intent
+                *name,
+                secret,
+            )
+        } else {
+            AuthoritySignInfo::new(
+                0,
+                tx.clone().data(),
+                Intent::default().with_scope(IntentScope::SenderSignedTransaction),
+                *name,
+                secret,
+            )
+        };
+
+        let resp = HandleTransactionResponse {
+            status: TransactionStatus::Signed(auth_signature),
+        };
+        clients.get_mut(name).unwrap().set_tx_info_response(resp);
+    }
+
+    let agg = get_agg(authorities.clone(), clients.clone(), 0);
+    agg.process_transaction(tx.clone()).await
 }
 
 async fn assert_resp_err<F>(
