@@ -743,8 +743,8 @@ impl SuiNode {
             .ok_or_else(|| anyhow::anyhow!("Transaction Orchestrator is not enabled in this node."))
     }
 
-    /// This function waits for a signal from the checkpoint executor to indicate that on-chain
-    /// epoch has changed. Upon receiving such signal, we reconfigure the entire system.
+    /// This function awaits the completion of checkpoint execution of the current epoch,
+    /// after which it iniitiates reconfiguration of the entire system.
     pub async fn monitor_reconfiguration(self: Arc<Self>) -> Result<()> {
         let mut checkpoint_executor = CheckpointExecutor::new(
             self.state_sync.subscribe_to_synced_checkpoints(),
@@ -775,7 +775,8 @@ impl SuiNode {
                     .submit(transaction, None, &cur_epoch_store)?;
             }
 
-            let next_epoch_committee = checkpoint_executor.run_epoch(cur_epoch_store.clone()).await;
+            let (next_epoch_committee, _root_state_digest) =
+                checkpoint_executor.run_epoch(cur_epoch_store.clone()).await;
             let next_epoch = next_epoch_committee.epoch();
             assert_eq!(cur_epoch_store.epoch() + 1, next_epoch);
             let system_state = self
@@ -822,6 +823,23 @@ impl SuiNode {
                 let new_epoch_store = self
                     .reconfigure_state(&cur_epoch_store, next_epoch_committee, system_state)
                     .await;
+
+                // at this point we have processed tx reverts, therefore the
+                // live object set is well defined
+                #[cfg(msim)]
+                {
+                    let live_object_set = self
+                        .state
+                        .database
+                        .iter_live_object_set()
+                        .map(|oref| oref.2);
+                    let mut acc = sui_types::accumulator::Accumulator::default();
+                    fastcrypto::hash::MultisetHash::insert_all(&mut acc, live_object_set);
+                    assert_eq!(
+                        fastcrypto::hash::MultisetHash::digest(&acc),
+                        _root_state_digest
+                    );
+                }
 
                 narwhal_epoch_data_remover
                     .remove_old_data(next_epoch - 1)
