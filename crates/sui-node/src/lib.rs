@@ -282,6 +282,8 @@ impl SuiNode {
         let accumulator = Arc::new(StateAccumulator::new(store));
 
         let validator_components = if state.is_validator(&epoch_store) {
+            info!("Constructing validator components...");
+
             let components = Self::construct_validator_components(
                 &config,
                 state.clone(),
@@ -495,6 +497,10 @@ impl SuiNode {
         let checkpoint_metrics = CheckpointMetrics::new(&registry_service.default_registry());
         let sui_tx_validator_metrics =
             SuiTxValidatorMetrics::new(&registry_service.default_registry());
+        info!(
+            "Starting epoch {} specific validator components...",
+            epoch_store.epoch()
+        );
         Self::start_epoch_specific_validator_components(
             config,
             state.clone(),
@@ -526,6 +532,7 @@ impl SuiNode {
         checkpoint_metrics: Arc<CheckpointMetrics>,
         sui_tx_validator_metrics: Arc<SuiTxValidatorMetrics>,
     ) -> Result<ValidatorComponents> {
+        info!("Starting checkpoint service...");
         let (checkpoint_service, checkpoint_service_exit) = Self::start_checkpoint_service(
             config,
             consensus_adapter.clone(),
@@ -600,7 +607,7 @@ impl SuiNode {
         accumulator: Arc<StateAccumulator>,
         checkpoint_metrics: Arc<CheckpointMetrics>,
     ) -> (Arc<CheckpointService>, watch::Sender<()>) {
-        debug!(
+        info!(
             "Starting checkpoint service with epoch start timestamp {}
             and epoch duration {}",
             epoch_store
