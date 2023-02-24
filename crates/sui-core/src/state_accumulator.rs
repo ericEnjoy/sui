@@ -41,6 +41,8 @@ impl StateAccumulator {
         if let Some(acc) = epoch_store.get_state_hash_for_checkpoint(&checkpoint_seq_num)? {
             return Ok(acc);
         }
+        // TODO(william)
+        println!("TESTING -- calling accumulate_checkpoint {checkpoint_seq_num}");
 
         let mut acc = Accumulator::default();
 
@@ -59,6 +61,22 @@ impl StateAccumulator {
                 })
                 .collect::<Vec<ObjectDigest>>(),
         );
+
+        // TODO(william)
+        let insertions = effects
+            .iter()
+            .flat_map(|fx| {
+                fx.created
+                    .clone()
+                    .into_iter()
+                    .map(|(oref, _)| oref.2)
+                    .chain(fx.unwrapped.clone().into_iter().map(|(oref, _)| oref.2))
+                    .chain(fx.mutated.clone().into_iter().map(|(oref, _)| oref.2))
+                    .collect::<Vec<ObjectDigest>>()
+            })
+            .collect::<Vec<ObjectDigest>>();
+        println!("TESTING -- num insertions: {}", insertions.len());
+        println!("TESTING -- digests inserted: {:?}", insertions);
 
         // get all modified_at_versions for the fx
         let modified_at_version_keys = effects
@@ -98,6 +116,22 @@ impl StateAccumulator {
                 })
                 .collect::<Vec<ObjectDigest>>(),
         );
+
+        // TODO(william)
+        let deletions = effects
+            .iter()
+            .flat_map(|fx| {
+                fx.deleted
+                    .clone()
+                    .into_iter()
+                    .map(|oref| oref.2)
+                    .chain(fx.wrapped.clone().into_iter().map(|oref| oref.2))
+                    .chain(modified_at_digests.clone().into_iter())
+                    .collect::<Vec<ObjectDigest>>()
+            })
+            .collect::<Vec<ObjectDigest>>();
+        println!("TESTING -- num deletions: {}", deletions.len());
+        println!("TESTING -- digests deleted: {:?}", deletions);
 
         epoch_store.insert_state_hash_for_checkpoint(&checkpoint_seq_num, &acc)?;
         debug!("Accumulated checkpoint {}", checkpoint_seq_num);
@@ -153,14 +187,29 @@ impl StateAccumulator {
             epoch, next_to_accumulate, last_checkpoint_of_epoch
         );
 
+        // TODO(william)
+        println!("TESTING -- Next to accumulate: {next_to_accumulate}");
+        println!("TESTING -- Last to accumulate: {last_checkpoint_of_epoch}");
+
         let (checkpoints, mut accumulators) = epoch_store
             .get_accumulators_in_checkpoint_range(next_to_accumulate, last_checkpoint_of_epoch)?
             .into_iter()
             .unzip::<_, _, Vec<_>, Vec<_>>();
 
+        println!(
+            "TESTING -- Num checkpoints already accumulated and fetched: {}",
+            checkpoints.len()
+        );
+
         let remaining_checkpoints: Vec<_> = (next_to_accumulate..=last_checkpoint_of_epoch)
             .filter(|seq_num| !checkpoints.contains(seq_num))
             .collect();
+
+        // TODO(william)
+        println!(
+            "TESTING -- Num checkpoints to await: {}",
+            remaining_checkpoints.len()
+        );
 
         if !remaining_checkpoints.is_empty() {
             debug!(
@@ -175,6 +224,12 @@ impl StateAccumulator {
             .expect("Failed to notify read checkpoint state digests");
 
         accumulators.append(&mut remaining_accumulators);
+
+        println!(
+            "TESTING -- Num checkpoints after await: {}",
+            accumulators.len()
+        );
+
         assert!(accumulators.len() == (last_checkpoint_of_epoch - next_to_accumulate + 1) as usize);
 
         for acc in accumulators {

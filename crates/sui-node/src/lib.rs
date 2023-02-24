@@ -826,7 +826,7 @@ impl SuiNode {
 
                 // at this point we have processed tx reverts, therefore the
                 // live object set is well defined
-                #[cfg(msim)]
+                // #[cfg(msim)]
                 {
                     let live_object_set = self
                         .state
@@ -835,6 +835,24 @@ impl SuiNode {
                         .map(|oref| oref.2);
                     let mut acc = sui_types::accumulator::Accumulator::default();
                     fastcrypto::hash::MultisetHash::insert_all(&mut acc, live_object_set);
+
+                    // TODO(william) ////////////
+                    let live_object_set_copy = self
+                        .state
+                        .database
+                        .iter_live_object_set()
+                        .map(|oref| oref.2)
+                        .collect::<Vec<sui_types::digests::ObjectDigest>>();
+                    println!(
+                        "TESTING -- live object set len: {}",
+                        live_object_set_copy.len()
+                    );
+                    println!(
+                        "TESTING -- live object set digests: {:?}",
+                        live_object_set_copy
+                    );
+                    /////////////////////////////
+
                     assert_eq!(
                         fastcrypto::hash::MultisetHash::digest(&acc),
                         _root_state_digest
