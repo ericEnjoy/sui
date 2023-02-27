@@ -38,6 +38,7 @@ dag = { path = "../dag", package = "narwhal-dag" }
 anemo.workspace = true
 workspace-hack = { version = "0.1", path = "../../crates/workspace-hack" }
 once_cell = "1.16.0"
+shared-crypto = { path = "../../crates/shared-crypto" }
 
 store = { path = "../../crates/typed-store", package = "typed-store" }
 mysten-util-mem.workspace = true

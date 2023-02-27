@@ -11,6 +11,7 @@ use tap::tap::TapFallible;
 use std::collections::HashSet;
 use std::path::Path;
 
+use shared_crypto::intent::Intent;
 use sui::client_commands::WalletContext;
 use sui_json_rpc_types::{SuiObjectRead, SuiPaySui, SuiTransactionKind, SuiTransactionResponse};
 use sui_keys::keystore::AccountKeystore;
@@ -18,7 +19,6 @@ use sui_types::object::Owner;
 use sui_types::{
     base_types::{ObjectID, SuiAddress, TransactionDigest},
     gas_coin::GasCoin,
-    intent::Intent,
     messages::{ExecuteTransactionRequestType, Transaction, TransactionData, VerifiedTransaction},
 };
 use tokio::sync::{

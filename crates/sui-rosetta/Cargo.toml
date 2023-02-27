@@ -43,6 +43,7 @@ sui-keys = { path = "../sui-keys" }
 sui-storage = { path = "../sui-storage" }
 mysten-metrics = { path = "../mysten-metrics" }
 chrono = "0.4.23"
+shared-crypto = { path = "../shared-crypto" }
 
 move-core-types.workspace = true
 

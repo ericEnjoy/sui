@@ -10,11 +10,15 @@
 
 use fastcrypto::{
     bls12381, ed25519,
+    error::FastCryptoError,
     hash::{Blake2b256, HashFunction},
+    traits::{Signer, VerifyingKey},
 };
 
 // This re-export allows using the trait-defined APIs
 pub use fastcrypto::traits;
+use serde::Serialize;
+use shared_crypto::intent::IntentMessage;
 
 ////////////////////////////////////////////////////////////////////////
 /// Type aliases selecting the signature algorithm for the code base.
@@ -43,3 +47,45 @@ pub type NetworkKeyPair = ed25519::Ed25519KeyPair;
 // Type alias selecting the default hash function for the code base.
 pub type DefaultHashFunction = Blake2b256;
 pub const DIGEST_LENGTH: usize = DefaultHashFunction::OUTPUT_SIZE;
+
+pub trait NarwhalAuthoritySignature {
+    fn new_secure<T>(value: &IntentMessage<T>, secret: &dyn Signer<Self>) -> Self
+    where
+        T: Serialize;
+
+    fn verify_secure<T>(
+        &self,
+        value: &IntentMessage<T>,
+        author: &PublicKey,
+    ) -> Result<(), FastCryptoError>
+    where
+        T: Serialize;
+}
+
+impl NarwhalAuthoritySignature for Signature {
+    fn new_secure<T>(value: &IntentMessage<T>, secret: &dyn Signer<Self>) -> Self
+    where
+        T: Serialize,
+    {
+        let mut message = Vec::new();
+        let intent_msg_bytes =
+            bcs::to_bytes(&value).expect("Message serialization should not fail");
+        message.extend(intent_msg_bytes);
+        secret.sign(&message)
+    }
+
+    fn verify_secure<T>(
+        &self,
+        value: &IntentMessage<T>,
+        public_key: &PublicKey,
+    ) -> Result<(), FastCryptoError>
+    where
+        T: Serialize,
+    {
+        let mut message = Vec::new();
+        let intent_msg_bytes =
+            bcs::to_bytes(&value).expect("Message serialization should not fail");
+        message.extend(intent_msg_bytes);
+        public_key.verify(&message[..], self)
+    }
+}

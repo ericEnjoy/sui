@@ -8,7 +8,7 @@ use crate::{
 };
 use bytes::Bytes;
 use config::{Committee, Epoch, SharedWorkerCache, Stake, WorkerId, WorkerInfo};
-use crypto::{AggregateSignature, PublicKey, Signature};
+use crypto::{AggregateSignature, NarwhalAuthoritySignature, PublicKey, Signature};
 use dag::node_dag::Affiliated;
 use derive_builder::Builder;
 use fastcrypto::{
@@ -23,6 +23,7 @@ use proptest_derive::Arbitrary;
 use roaring::RoaringBitmap;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+use shared_crypto::intent::{AppId, Intent, IntentMessage, IntentScope};
 use std::time::{Duration, SystemTime};
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
@@ -181,10 +182,18 @@ impl HeaderBuilder {
             digest: OnceCell::default(),
             signature: Signature::default(),
         };
-        h.digest.set(Hash::digest(&h)).unwrap();
+        let header_digest: Digest<{ crypto::DIGEST_LENGTH }> = h.digest().into();
 
         Ok(Header {
-            signature: signer.sign(Digest::from(Hash::digest(&h)).as_ref()),
+            signature: Signature::new_secure(
+                &IntentMessage::new(
+                    Intent::default()
+                        .with_scope(IntentScope::HeaderDigest)
+                        .with_app_id(AppId::Narwhal),
+                    header_digest,
+                ),
+                signer,
+            ),
             ..h
         })
     }
@@ -272,8 +281,16 @@ impl Header {
 
         // Check the signature.
         let digest: Digest<{ crypto::DIGEST_LENGTH }> = Digest::from(self.digest());
-        self.author
-            .verify(digest.as_ref(), &self.signature)
+        self.signature
+            .verify_secure(
+                &IntentMessage::new(
+                    Intent::default()
+                        .with_app_id(AppId::Narwhal)
+                        .with_scope(IntentScope::HeaderDigest),
+                    digest,
+                ),
+                &self.author,
+            )
             .map_err(|_| DagError::InvalidSignature)
     }
 }
@@ -430,7 +447,15 @@ impl Vote {
         };
 
         let vote_digest: Digest<{ crypto::DIGEST_LENGTH }> = vote.digest().into();
-        let signature = signer.sign(vote_digest.as_ref());
+        let signature = Signature::new_secure(
+            &IntentMessage::new(
+                Intent::default()
+                    .with_scope(IntentScope::VoteDigest)
+                    .with_app_id(AppId::Narwhal),
+                vote_digest,
+            ),
+            signer,
+        );
 
         Self { signature, ..vote }
     }
@@ -453,8 +478,16 @@ impl Vote {
 
         // Check the signature.
         let vote_digest: Digest<{ crypto::DIGEST_LENGTH }> = self.digest().into();
-        self.author
-            .verify(vote_digest.as_ref(), &self.signature)
+        self.signature
+            .verify_secure(
+                &IntentMessage::new(
+                    Intent::default()
+                        .with_app_id(AppId::Narwhal)
+                        .with_scope(IntentScope::VoteDigest),
+                    vote_digest,
+                ),
+                &self.author,
+            )
             .map_err(|_| DagError::InvalidSignature)
     }
 }

@@ -28,6 +28,7 @@ use schemars::JsonSchema;
 use serde::ser::Serializer;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_with::{serde_as, Bytes};
+use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use std::collections::BTreeMap;
 use std::fmt::{self, Display, Formatter};
 use std::hash::{Hash, Hasher};
@@ -37,7 +38,6 @@ use strum::EnumString;
 use crate::base_types::{AuthorityName, ObjectID, SuiAddress};
 use crate::committee::{Committee, EpochId, StakeUnit};
 use crate::error::{SuiError, SuiResult};
-use crate::intent::{Intent, IntentMessage};
 use crate::sui_serde::{Readable, SuiBitmap};
 pub use enum_dispatch::enum_dispatch;
 use fastcrypto::encoding::{Base64, Encoding, Hex};
@@ -49,6 +49,10 @@ use std::fmt::Debug;
 #[cfg(test)]
 #[path = "unit_tests/crypto_tests.rs"]
 mod crypto_tests;
+
+#[cfg(test)]
+#[path = "unit_tests/intent_tests.rs"]
+mod intent_tests;
 
 // Authority Objects
 pub type AuthorityKeyPair = BLS12381KeyPair;
@@ -74,17 +78,28 @@ pub const DERVIATION_PATH_PURPOSE_ED25519: u32 = 44;
 pub const DERVIATION_PATH_PURPOSE_SECP256K1: u32 = 54;
 pub const TBLS_RANDOMNESS_OBJECT_DOMAIN: &[u8; 10] = b"randomness";
 
-// Creates a proof that the keypair is possesed, as well as binds this proof to a specific SuiAddress.
-pub fn generate_proof_of_possession<K: KeypairTraits>(
-    keypair: &K,
+/// Creates a proof of that the authority account address is owned by the
+/// holder of authority protocol key, and also ensures that the authority
+/// protocol public key exists. A proof of possession is an authority
+/// signature committed over the intent message `intent || message` (See
+/// more at [struct IntentMessage] and [struct Intent]) where the message is
+/// constructed as `kosk domain || authority_pubkey_bytes || authority_account_address`.
+pub fn generate_proof_of_possession(
+    keypair: &AuthorityKeyPair,
     address: SuiAddress,
-) -> <K as KeypairTraits>::Sig {
+) -> AuthoritySignature {
     let mut domain_with_pk: Vec<u8> = Vec::new();
     domain_with_pk.extend_from_slice(PROOF_OF_POSSESSION_DOMAIN);
     domain_with_pk.extend_from_slice(keypair.public().as_bytes());
     domain_with_pk.extend_from_slice(address.as_ref());
-    // TODO (joyqvq): Use Signature::new_secure
-    keypair.sign(&domain_with_pk[..])
+    AuthoritySignature::new_secure(
+        &IntentMessage::new(
+            Intent::default().with_scope(IntentScope::ProofOfPossession),
+            domain_with_pk,
+        ),
+        &0,
+        keypair,
+    )
 }
 
 ///////////////////////////////////////////////
@@ -632,16 +647,6 @@ impl<'de> Deserialize<'de> for Signature {
 }
 
 impl Signature {
-    #[warn(deprecated)]
-    pub fn new<T>(value: &T, secret: &dyn Signer<Signature>) -> Signature
-    where
-        T: Signable<Vec<u8>>,
-    {
-        let mut message = Vec::new();
-        value.write(&mut message);
-        Signer::sign(secret, &message)
-    }
-
     pub fn new_secure<T>(value: &IntentMessage<T>, secret: &dyn Signer<Signature>) -> Self
     where
         T: Serialize,
@@ -1603,7 +1608,7 @@ pub mod bcs_signable_test {
     where
         T: super::bcs_signable::BcsSignable,
     {
-        use crate::intent::{Intent, IntentScope};
+        use shared_crypto::intent::{Intent, IntentScope};
 
         let mut obligation = VerificationObligation::default();
         // Add the obligation of the authority signature verifications.
