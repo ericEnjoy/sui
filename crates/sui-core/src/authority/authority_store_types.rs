@@ -1,7 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use lazy_static::lazy_static;
 use move_core_types::language_storage::StructTag;
+use rand::distributions::{Distribution, Uniform};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use serde_with::Bytes;
@@ -11,6 +13,16 @@ use sui_types::crypto::{sha3_hash, Signable};
 use sui_types::error::SuiError;
 use sui_types::move_package::MovePackage;
 use sui_types::object::{Data, MoveObject, Object, Owner};
+use tracing::debug;
+
+lazy_static! {
+    static ref ENABLE_INDIRECT: bool = {
+        let mut rng = rand::thread_rng();
+        let value = Uniform::from(0..2).sample(&mut rng) == 0;
+        debug!("indirect setting is {}", value);
+        value
+    };
+}
 
 /// Forked version of [`sui_types::object::Object`]
 /// Used for efficient storing of move objects in the database
@@ -77,7 +89,7 @@ impl From<Object> for StoreObjectPair {
             Data::Package(package) => StoreData::Package(package),
             Data::Move(move_obj) => {
                 // TODO: add real heuristic to decide if object needs to be stored indirectly
-                if cfg!(test) {
+                if *ENABLE_INDIRECT {
                     let move_object = StoreMoveObject {
                         type_: move_obj.type_.clone(),
                         has_public_transfer: move_obj.has_public_transfer(),

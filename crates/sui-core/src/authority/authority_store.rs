@@ -721,11 +721,27 @@ impl AuthorityStore {
             })
             .unzip();
 
+        let indirect_objects: Vec<_> = new_indirect_move_objects.into_iter().flatten().collect();
+        let existing_digests = self
+            .perpetual_tables
+            .indirect_move_objects
+            .multi_get(indirect_objects.iter().map(|(digest, _)| digest))?;
+        let (existing_indirect_objects, new_indirect_objects): (Vec<_>, Vec<_>) = indirect_objects
+            .into_iter()
+            .enumerate()
+            .partition(|(idx, _)| existing_digests[*idx].is_some());
+
         write_batch = write_batch
             .insert_batch(&self.perpetual_tables.objects, new_objects.into_iter())?
             .merge_batch(
                 &self.perpetual_tables.indirect_move_objects,
-                new_indirect_move_objects.into_iter().flatten(),
+                new_indirect_objects.into_iter().map(|(_, pair)| pair),
+            )?
+            .partial_merge_batch(
+                &self.perpetual_tables.indirect_move_objects,
+                existing_indirect_objects
+                    .into_iter()
+                    .map(|(_, (digest, _))| (digest, 1_u64.to_le_bytes())),
             )?;
 
         write_batch =

@@ -237,7 +237,7 @@ impl AuthorityStorePruner {
         tokio::task::spawn(async move {
             loop {
                 tokio::select! {
-                    _ = prune_interval.tick(), if num_versions_to_retain != u64::MAX => {
+                    _ = prune_interval.tick(), if false => {
                         info!("Starting pruning of objects table");
                         let num_pruned = Self::prune_objects(num_versions_to_retain, &perpetual_db.objects);
                         info!("Finished pruning with total object versions pruned = {}", num_pruned);
@@ -247,7 +247,7 @@ impl AuthorityStorePruner {
                             error!("Failed to flush objects table");
                         }
                     },
-                    _ = live_prune_interval.tick(), if num_epochs_to_retain != u64::MAX => {
+                    _ = live_prune_interval.tick(), if false => {
                         match Self::process_checkpoints(&perpetual_db, &checkpoint_store, num_epochs_to_retain) {
                             Ok(()) => info!("Pruned checkpoints"),
                             Err(err) => error!("Failed to prune objects: {:?}", err),
