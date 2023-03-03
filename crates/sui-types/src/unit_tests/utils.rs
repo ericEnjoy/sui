@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::traits::KeyPair as KeypairTraits;
+use shared_crypto::intent::Intent;
 
 use crate::crypto::Signer;
 use crate::{
@@ -12,7 +13,6 @@ use crate::{
         AuthorityPublicKeyBytes, Signature,
     },
     gas::GasCostSummary,
-    intent::Intent,
     messages::{Transaction, TransactionData, VerifiedTransaction},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, SignedCheckpointSummary,

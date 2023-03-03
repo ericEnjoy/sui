@@ -8,10 +8,6 @@ use serde_repr::Deserialize_repr;
 use serde_repr::Serialize_repr;
 use std::str::FromStr;
 
-#[cfg(test)]
-#[path = "unit_tests/intent_tests.rs"]
-mod intent_tests;
-
 /// The version here is to distinguish between signing different versions of the struct
 /// or enum. Serialized output between two different versions of the same struct/enum
 /// might accidentally (or maliciously on purpose) match.
@@ -39,6 +35,7 @@ impl TryFrom<u8> for IntentVersion {
 #[repr(u8)]
 pub enum AppId {
     Sui = 0,
+    Narwhal = 1,
 }
 
 // TODO(joyqvq): Use num_derive
@@ -67,6 +64,7 @@ pub enum IntentScope {
     PersonalMessage = 3,
     SenderSignedTransaction = 4,
     ProofOfPossession = 5,
+    HeaderDigest = 6,
 }
 
 impl TryFrom<u8> for IntentScope {

@@ -15,9 +15,9 @@ use crate::crypto::{
     get_key_pair, get_key_pair_from_bytes, AccountKeyPair, AuthorityKeyPair, AuthoritySignature,
     Signature, SuiAuthoritySignature, SuiSignature,
 };
-use crate::intent::{Intent, IntentMessage};
 use crate::OBJECT_START_VERSION;
 use crate::{gas_coin::GasCoin, object::Object, SUI_FRAMEWORK_ADDRESS};
+use shared_crypto::intent::{Intent, IntentMessage};
 use sui_protocol_config::ProtocolConfig;
 
 use super::*;

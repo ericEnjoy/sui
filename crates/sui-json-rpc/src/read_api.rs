@@ -8,12 +8,12 @@ use move_binary_format::normalized::{Module as NormalizedModule, Type};
 use move_core_types::identifier::Identifier;
 use move_core_types::language_storage::StructTag;
 use move_core_types::value::{MoveStruct, MoveValue};
+use shared_crypto::intent::{AppId, Intent, IntentMessage, IntentScope, IntentVersion};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use sui_types::collection_types::VecMap;
 use sui_types::display::{DisplayCreatedEvent, DisplayObject};
 use sui_types::error::UserInputError;
-use sui_types::intent::{AppId, Intent, IntentMessage, IntentScope, IntentVersion};
 use tap::TapFallible;
 
 use crate::api::ReadApiServer;

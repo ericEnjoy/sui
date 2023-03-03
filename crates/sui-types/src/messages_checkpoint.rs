@@ -11,7 +11,6 @@ use crate::committee::{EpochId, ProtocolVersion, StakeUnit};
 use crate::crypto::{AuthoritySignInfo, AuthoritySignInfoTrait, AuthorityStrongQuorumSignInfo};
 use crate::error::SuiResult;
 use crate::gas::GasCostSummary;
-use crate::intent::{Intent, IntentScope};
 use crate::signature::GenericSignature;
 use crate::{
     base_types::AuthorityName,
@@ -23,6 +22,7 @@ use fastcrypto::traits::Signer;
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use shared_crypto::intent::{Intent, IntentScope};
 
 pub use crate::digests::CheckpointContentsDigest;
 pub use crate::digests::CheckpointDigest;

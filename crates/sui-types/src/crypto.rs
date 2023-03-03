@@ -28,6 +28,7 @@ use schemars::JsonSchema;
 use serde::ser::Serializer;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_with::{serde_as, Bytes};
+use shared_crypto::intent::{Intent, IntentMessage};
 use std::collections::BTreeMap;
 use std::fmt::{self, Display, Formatter};
 use std::hash::{Hash, Hasher};
@@ -37,7 +38,6 @@ use strum::EnumString;
 use crate::base_types::{AuthorityName, ObjectID, SuiAddress};
 use crate::committee::{Committee, EpochId, StakeUnit};
 use crate::error::{SuiError, SuiResult};
-use crate::intent::{Intent, IntentMessage};
 use crate::sui_serde::{Readable, SuiBitmap};
 pub use enum_dispatch::enum_dispatch;
 use fastcrypto::encoding::{Base64, Encoding, Hex};
@@ -1603,7 +1603,7 @@ pub mod bcs_signable_test {
     where
         T: super::bcs_signable::BcsSignable,
     {
-        use crate::intent::{Intent, IntentScope};
+        use shared_crypto::intent::{Intent, IntentScope};
 
         let mut obligation = VerificationObligation::default();
         // Add the obligation of the authority signature verifications.
