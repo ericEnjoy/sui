@@ -1,9 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use fastcrypto::traits::KeyPair as KeypairTraits;
-use shared_crypto::intent::Intent;
-
 use crate::crypto::Signer;
 use crate::{
     base_types::{dbg_addr, ExecutionDigests, ObjectID},
@@ -19,6 +16,8 @@ use crate::{
     },
     object::Object,
 };
+use fastcrypto::traits::KeyPair as KeypairTraits;
+use shared_crypto::intent::Intent;
 use std::collections::BTreeMap;
 
 pub fn make_committee_key<R>(rand: &mut R) -> (Vec<AuthorityKeyPair>, Committee)
