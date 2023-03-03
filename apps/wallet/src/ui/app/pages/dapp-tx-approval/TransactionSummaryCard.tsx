@@ -4,13 +4,14 @@
 import { useFormatCoin } from '@mysten/core';
 import { formatAddress, type SuiAddress } from '@mysten/sui.js';
 
+import { TxnAddressLink } from '../../components/TxnAddressLink';
 import { MiniNFT } from './MiniNFT';
 import { SummaryCard } from './SummaryCard';
 import AccountAddress from '_components/account-address';
 import ExplorerLink from '_components/explorer-link';
 import { ExplorerLinkType } from '_components/explorer-link/ExplorerLinkType';
 import { useGetNFTMeta, useTransactionSummary } from '_hooks';
-import { GAS_TYPE_ARG } from '_redux/slices/sui-objects/Coin';
+import { GAS_SYMBOL, GAS_TYPE_ARG } from '_redux/slices/sui-objects/Coin';
 import { Text } from '_src/ui/app/shared/text';
 
 import type { CoinsMetaProps } from '../../helpers/getEventsSummary';
@@ -110,10 +111,6 @@ function TransactionSummary({
     sponsorAddress,
 }: TransferSummerCardProps) {
     const [gasEst, gasSymbol] = useFormatCoin(gasEstimate || 0, GAS_TYPE_ARG);
-    const [senderTotalAmount, senderTotalAmountSymbol] = useFormatCoin(
-        0,
-        GAS_TYPE_ARG
-    );
 
     return (
         <SummaryCard header="Transaction summary">
@@ -170,16 +167,13 @@ function TransactionSummary({
                             >
                                 You Paid
                             </Text>
-                            <div className="flex gap-1 items-center">
-                                <Text
-                                    variant="p2"
-                                    weight="medium"
-                                    color="steel-darker"
-                                >
-                                    {senderTotalAmount}{' '}
-                                    {senderTotalAmountSymbol}
-                                </Text>
-                            </div>
+                            <Text
+                                variant="p2"
+                                weight="medium"
+                                color="steel-darker"
+                            >
+                                0 {GAS_SYMBOL}
+                            </Text>
                         </div>
                         <div className="flex justify-between items-center w-full">
                             <Text
@@ -189,15 +183,13 @@ function TransactionSummary({
                             >
                                 Paid by Sponsor
                             </Text>
-                            <div className="flex gap-1 items-center">
-                                <Text
-                                    variant="p2"
-                                    weight="medium"
-                                    color="steel-darker"
-                                >
-                                    {gasEst} {gasSymbol}
-                                </Text>
-                            </div>
+                            <Text
+                                variant="p2"
+                                weight="medium"
+                                color="steel-darker"
+                            >
+                                {gasEst} {gasSymbol}
+                            </Text>
                         </div>
                         <div className="flex justify-between items-center w-full">
                             <Text
@@ -207,9 +199,7 @@ function TransactionSummary({
                             >
                                 Sponsor
                             </Text>
-                            <div className="flex gap-1 items-center">
-                                <TxnAddressLink address={sponsorAddress} />
-                            </div>
+                            <TxnAddressLink address={sponsorAddress} />
                         </div>
                     </div>
                 ) : (
