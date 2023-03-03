@@ -157,7 +157,7 @@ function TransactionSummary({
                             weight="medium"
                             color="steel"
                         >
-                            Estimated Gas Fee
+                            Estimated Gas Fees
                         </Text>
                         <div className="flex justify-between items-center w-full">
                             <Text
