@@ -10,11 +10,15 @@
 
 use fastcrypto::{
     bls12381, ed25519,
+    error::FastCryptoError,
     hash::{Blake2b256, HashFunction},
+    traits::{AggregateAuthenticator, Signer, VerifyingKey},
 };
 
 // This re-export allows using the trait-defined APIs
 pub use fastcrypto::traits;
+use serde::Serialize;
+use shared_crypto::intent::IntentMessage;
 
 ////////////////////////////////////////////////////////////////////////
 /// Type aliases selecting the signature algorithm for the code base.
@@ -43,3 +47,76 @@ pub type NetworkKeyPair = ed25519::Ed25519KeyPair;
 // Type alias selecting the default hash function for the code base.
 pub type DefaultHashFunction = Blake2b256;
 pub const DIGEST_LENGTH: usize = DefaultHashFunction::OUTPUT_SIZE;
+pub const INTENT_MESSAGE_LENGTH: usize = DIGEST_LENGTH + 3;
+
+/// A trait for sign and verify over an intent message, instead of the message itself. See more at [struct IntentMessage].
+pub trait NarwhalAuthoritySignature {
+    /// Create a new signature over an intent message.
+    fn new_secure<T>(value: &IntentMessage<T>, secret: &dyn Signer<Self>) -> Self
+    where
+        T: Serialize;
+
+    /// Verify the signature on an intent message against the public key.
+    fn verify_secure<T>(
+        &self,
+        value: &IntentMessage<T>,
+        author: &PublicKey,
+    ) -> Result<(), FastCryptoError>
+    where
+        T: Serialize;
+}
+
+impl NarwhalAuthoritySignature for Signature {
+    fn new_secure<T>(value: &IntentMessage<T>, secret: &dyn Signer<Self>) -> Self
+    where
+        T: Serialize,
+    {
+        let mut message = Vec::new();
+        let intent_msg_bytes =
+            bcs::to_bytes(&value).expect("Message serialization should not fail");
+        message.extend(intent_msg_bytes);
+        secret.sign(&message)
+    }
+
+    fn verify_secure<T>(
+        &self,
+        value: &IntentMessage<T>,
+        public_key: &PublicKey,
+    ) -> Result<(), FastCryptoError>
+    where
+        T: Serialize,
+    {
+        let mut message = Vec::new();
+        let intent_msg_bytes =
+            bcs::to_bytes(&value).expect("Message serialization should not fail");
+        message.extend(intent_msg_bytes);
+        public_key.verify(&message, self)
+    }
+}
+
+pub trait NarwhalAuthorityAggregateSignature {
+    fn verify_secure<T>(
+        &self,
+        value: &IntentMessage<T>,
+        pks: &[PublicKey],
+    ) -> Result<(), FastCryptoError>
+    where
+        T: Serialize;
+}
+
+impl NarwhalAuthorityAggregateSignature for AggregateSignature {
+    fn verify_secure<T>(
+        &self,
+        value: &IntentMessage<T>,
+        pks: &[PublicKey],
+    ) -> Result<(), FastCryptoError>
+    where
+        T: Serialize,
+    {
+        let mut message = Vec::new();
+        let intent_msg_bytes =
+            bcs::to_bytes(&value).expect("Message serialization should not fail");
+        message.extend(intent_msg_bytes);
+        self.verify(pks, &message)
+    }
+}

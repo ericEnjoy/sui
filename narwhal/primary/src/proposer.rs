@@ -46,7 +46,7 @@ pub struct Proposer {
     /// The committee information.
     committee: Committee,
     /// Service to sign headers.
-    signature_service: SignatureService<Signature, { crypto::DIGEST_LENGTH }>,
+    signature_service: SignatureService<Signature, { crypto::INTENT_MESSAGE_LENGTH }>,
     /// The threshold number of batches that can trigger
     /// a header creation. When there are available at least
     /// `header_num_of_batches_threshold` batches we are ok
@@ -104,7 +104,7 @@ impl Proposer {
     pub fn spawn(
         name: PublicKey,
         committee: Committee,
-        signature_service: SignatureService<Signature, { crypto::DIGEST_LENGTH }>,
+        signature_service: SignatureService<Signature, { crypto::INTENT_MESSAGE_LENGTH }>,
         proposer_store: ProposerStore,
         header_num_of_batches_threshold: usize,
         max_header_num_of_batches: usize,

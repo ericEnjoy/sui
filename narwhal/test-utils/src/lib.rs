@@ -7,10 +7,12 @@ use config::{
     utils::get_available_port, Authority, Committee, Epoch, SharedWorkerCache, Stake, WorkerCache,
     WorkerId, WorkerIndex, WorkerInfo,
 };
-use crypto::{KeyPair, NetworkKeyPair, NetworkPublicKey, PublicKey};
+use crypto::{
+    KeyPair, NarwhalAuthoritySignature, NetworkKeyPair, NetworkPublicKey, PublicKey, Signature,
+};
 use fastcrypto::{
-    hash::{Digest, Hash as _},
-    traits::{AllowedRng, KeyPair as _, Signer as _},
+    hash::Hash as _,
+    traits::{AllowedRng, KeyPair as _},
 };
 use indexmap::IndexMap;
 use multiaddr::Multiaddr;
@@ -18,6 +20,7 @@ use rand::{
     rngs::{OsRng, StdRng},
     thread_rng, Rng, SeedableRng,
 };
+use shared_crypto::intent::{AppId, Intent, IntentMessage, IntentScope};
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     num::NonZeroUsize,
@@ -32,7 +35,7 @@ use tracing::info;
 use types::{
     Batch, BatchDigest, Certificate, CertificateDigest, CommittedSubDagShell, ConsensusStore,
     FetchCertificatesRequest, FetchCertificatesResponse, GetCertificatesRequest,
-    GetCertificatesResponse, Header, HeaderBuilder, PayloadAvailabilityRequest,
+    GetCertificatesResponse, Header, HeaderBuilder, HeaderDigest, PayloadAvailabilityRequest,
     PayloadAvailabilityResponse, PrimaryToPrimary, PrimaryToPrimaryServer, PrimaryToWorker,
     PrimaryToWorkerServer, RequestBatchRequest, RequestBatchResponse, RequestVoteRequest,
     RequestVoteResponse, Round, SendCertificateRequest, SendCertificateResponse, SequenceNumber,
@@ -556,7 +559,15 @@ pub fn mock_signed_certificate(
     let mut votes = Vec::new();
     for signer in signers {
         let pk = signer.public();
-        let sig = signer.sign(Digest::from(cert.digest()).as_ref());
+        let sig = Signature::new_secure(
+            &IntentMessage::<HeaderDigest>::new(
+                Intent::default()
+                    .with_app_id(AppId::Narwhal)
+                    .with_scope(IntentScope::HeaderDigest),
+                cert.header.digest(),
+            ),
+            signer,
+        );
         votes.push((pk.clone(), sig))
     }
     let cert = Certificate::new(committee, header, votes).unwrap();

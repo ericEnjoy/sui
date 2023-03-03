@@ -2,15 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use config::WorkerId;
-use crypto::{KeyPair, Signature};
-use fastcrypto::traits::Signer;
-use fastcrypto::{
-    hash::{Digest, Hash},
-    traits::KeyPair as _,
-};
+use crypto::{KeyPair, NarwhalAuthoritySignature, Signature};
+use fastcrypto::{hash::Hash, traits::KeyPair as _};
 use once_cell::sync::OnceCell;
 use proptest::{collection, prelude::*, strategy::Strategy};
 use rand::{rngs::StdRng, SeedableRng};
+use shared_crypto::intent::{AppId, Intent, IntentMessage, IntentScope};
 
 use crate::{BatchDigest, CertificateDigest, Header, HeaderDigest};
 
@@ -48,9 +45,18 @@ fn clean_signed_header(kp: KeyPair) -> impl Strategy<Value = Header> {
                 digest: OnceCell::default(),
                 signature: Signature::default(),
             };
+            let digest = Hash::digest(&header);
             Header {
-                digest: OnceCell::with_value(Hash::digest(&header)),
-                signature: kp.sign(Digest::from(Hash::digest(&header)).as_ref()),
+                digest: OnceCell::with_value(digest),
+                signature: Signature::new_secure(
+                    &IntentMessage::<HeaderDigest>::new(
+                        Intent::default()
+                            .with_app_id(AppId::Narwhal)
+                            .with_scope(IntentScope::HeaderDigest),
+                        digest,
+                    ),
+                    &kp,
+                ),
                 ..header
             }
         })
@@ -67,7 +73,15 @@ fn arb_signed_header(kp: KeyPair) -> impl Strategy<Value = Header> {
             if naughtiness < 95 {
                 clean_header
             } else if naughtiness < 99 {
-                let signature = kp.sign(Digest::from(random_digest).as_ref());
+                let signature = Signature::new_secure(
+                    &IntentMessage::<HeaderDigest>::new(
+                        Intent::default()
+                            .with_app_id(AppId::Narwhal)
+                            .with_scope(IntentScope::HeaderDigest),
+                        random_digest,
+                    ),
+                    &kp,
+                );
                 // naughty: we provide a well-signed random header
                 Header {
                     digest: OnceCell::with_value(random_digest),

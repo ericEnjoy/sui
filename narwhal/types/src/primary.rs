@@ -8,7 +8,10 @@ use crate::{
 };
 use bytes::Bytes;
 use config::{Committee, Epoch, SharedWorkerCache, Stake, WorkerId, WorkerInfo};
-use crypto::{AggregateSignature, PublicKey, Signature};
+use crypto::{
+    AggregateSignature, NarwhalAuthorityAggregateSignature, NarwhalAuthoritySignature, PublicKey,
+    Signature,
+};
 use dag::node_dag::Affiliated;
 use derive_builder::Builder;
 use fastcrypto::{
@@ -23,6 +26,7 @@ use proptest_derive::Arbitrary;
 use roaring::RoaringBitmap;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+use shared_crypto::intent::{AppId, Intent, IntentMessage, IntentScope};
 use std::time::{Duration, SystemTime};
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
@@ -182,9 +186,18 @@ impl HeaderBuilder {
             signature: Signature::default(),
         };
         h.digest.set(Hash::digest(&h)).unwrap();
+        let header_digest: Digest<{ crypto::DIGEST_LENGTH }> = h.digest().into();
 
         Ok(Header {
-            signature: signer.sign(Digest::from(Hash::digest(&h)).as_ref()),
+            signature: Signature::new_secure(
+                &IntentMessage::new(
+                    Intent::default()
+                        .with_scope(IntentScope::HeaderDigest)
+                        .with_app_id(AppId::Narwhal),
+                    header_digest,
+                ),
+                signer,
+            ),
             ..h
         })
     }
@@ -214,7 +227,7 @@ impl Header {
         epoch: Epoch,
         payload: IndexMap<BatchDigest, (WorkerId, TimestampMs)>,
         parents: BTreeSet<CertificateDigest>,
-        signature_service: &SignatureService<Signature, { crypto::DIGEST_LENGTH }>,
+        signature_service: &SignatureService<Signature, { crypto::INTENT_MESSAGE_LENGTH }>,
     ) -> Self {
         let header = Self {
             author,
@@ -272,8 +285,17 @@ impl Header {
 
         // Check the signature.
         let digest: Digest<{ crypto::DIGEST_LENGTH }> = Digest::from(self.digest());
-        self.author
-            .verify(digest.as_ref(), &self.signature)
+
+        self.signature
+            .verify_secure(
+                &IntentMessage::new(
+                    Intent::default()
+                        .with_app_id(AppId::Narwhal)
+                        .with_scope(IntentScope::HeaderDigest),
+                    digest,
+                ),
+                &self.author,
+            )
             .map_err(|_| DagError::InvalidSignature)
     }
 }
@@ -312,6 +334,24 @@ pub struct HeaderDigest([u8; crypto::DIGEST_LENGTH]);
 impl From<HeaderDigest> for Digest<{ crypto::DIGEST_LENGTH }> {
     fn from(hd: HeaderDigest) -> Self {
         Digest::new(hd.0)
+    }
+}
+
+impl From<HeaderDigest> for Digest<{ crypto::INTENT_MESSAGE_LENGTH }> {
+    fn from(digest: HeaderDigest) -> Self {
+        let intent_message = IntentMessage::<HeaderDigest>::new(
+            Intent::default()
+                .with_scope(IntentScope::HeaderDigest)
+                .with_app_id(AppId::Narwhal),
+            digest,
+        );
+
+        Digest {
+            digest: bcs::to_bytes(&intent_message)
+                .expect("Serialization message should not fail")
+                .try_into()
+                .expect("INTENT_MESSAGE_LENGTH is correct"),
+        }
     }
 }
 
@@ -400,7 +440,7 @@ impl Vote {
     pub async fn new(
         header: &Header,
         author: &PublicKey,
-        signature_service: &SignatureService<Signature, { crypto::DIGEST_LENGTH }>,
+        signature_service: &SignatureService<Signature, { crypto::INTENT_MESSAGE_LENGTH }>,
     ) -> Self {
         let vote = Self {
             header_digest: header.digest(),
@@ -430,7 +470,15 @@ impl Vote {
         };
 
         let vote_digest: Digest<{ crypto::DIGEST_LENGTH }> = vote.digest().into();
-        let signature = signer.sign(vote_digest.as_ref());
+        let signature = Signature::new_secure(
+            &IntentMessage::new(
+                Intent::default()
+                    .with_scope(IntentScope::HeaderDigest)
+                    .with_app_id(AppId::Narwhal),
+                vote_digest,
+            ),
+            signer,
+        );
 
         Self { signature, ..vote }
     }
@@ -453,8 +501,16 @@ impl Vote {
 
         // Check the signature.
         let vote_digest: Digest<{ crypto::DIGEST_LENGTH }> = self.digest().into();
-        self.author
-            .verify(vote_digest.as_ref(), &self.signature)
+        self.signature
+            .verify_secure(
+                &IntentMessage::new(
+                    Intent::default()
+                        .with_scope(IntentScope::HeaderDigest)
+                        .with_app_id(AppId::Narwhal),
+                    vote_digest,
+                ),
+                &self.author,
+            )
             .map_err(|_| DagError::InvalidSignature)
     }
 }
@@ -466,6 +522,24 @@ pub struct VoteDigest([u8; crypto::DIGEST_LENGTH]);
 impl From<VoteDigest> for Digest<{ crypto::DIGEST_LENGTH }> {
     fn from(hd: VoteDigest) -> Self {
         Digest::new(hd.0)
+    }
+}
+
+impl From<VoteDigest> for Digest<{ crypto::INTENT_MESSAGE_LENGTH }> {
+    fn from(digest: VoteDigest) -> Self {
+        let intent_message = IntentMessage::<HeaderDigest>::new(
+            Intent::default()
+                .with_scope(IntentScope::HeaderDigest)
+                .with_app_id(AppId::Narwhal),
+            HeaderDigest(digest.0),
+        );
+
+        Digest {
+            digest: bcs::to_bytes(&intent_message)
+                .expect("Serialization message should not fail")
+                .try_into()
+                .expect("INTENT_MESSAGE_LENGTH is correct"),
+        }
     }
 }
 
@@ -677,7 +751,6 @@ impl Certificate {
 
         // Check the embedded header.
         self.header.verify(committee, worker_cache)?;
-
         let (weight, pks) = self.signed_by(committee);
 
         ensure!(
@@ -688,7 +761,15 @@ impl Certificate {
         // Verify the signatures
         let certificate_digest: Digest<{ crypto::DIGEST_LENGTH }> = Digest::from(self.digest());
         self.aggregated_signature
-            .verify(&pks[..], certificate_digest.as_ref())
+            .verify_secure(
+                &IntentMessage::new(
+                    Intent::default()
+                        .with_app_id(AppId::Narwhal)
+                        .with_scope(IntentScope::HeaderDigest),
+                    certificate_digest,
+                ),
+                &pks[..],
+            )
             .map_err(|_| DagError::InvalidSignature)?;
 
         Ok(())
