@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use strum_macros::EnumString;
 use sui_core::authority::authority_per_epoch_store::AuthorityEpochTables;
 use sui_core::authority::authority_store_tables::AuthorityPerpetualTables;
-use sui_core::authority::authority_store_types::StoreData;
+use sui_core::authority::authority_store_types::{StoreData, StoreObject};
 use sui_core::epoch::committee_store::CommitteeStore;
 use sui_storage::default_db_options;
 use sui_storage::write_ahead_log::DBWriteAheadLogTables;
@@ -102,6 +102,8 @@ pub fn duplicate_objects_summary(db_path: PathBuf) -> (usize, usize, usize, usiz
     let mut data: HashMap<Vec<u8>, usize> = HashMap::new();
 
     for (key, value) in iter {
+        let value = StoreObject::migrate(value).into_inner();
+
         if let StoreData::Move(object) = value.data {
             if object_id != key.0 {
                 for (k, cnt) in data.iter() {

@@ -138,7 +138,7 @@ impl AuthorityPerpetualTables {
     }
 
     pub fn object(&self, store_object: StoreObject) -> Result<Object, SuiError> {
-        let indirect_object = match store_object.data {
+        let indirect_object = match store_object.inner().data {
             StoreData::IndirectObject(ref metadata) => {
                 self.indirect_move_objects.get(&metadata.digest)?
             }

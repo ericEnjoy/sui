@@ -52,7 +52,9 @@ impl AuthorityStorePruner {
             .objects
             .multi_get(object_keys_to_prune.iter())?
         {
-            if let Some(StoreData::IndirectObject(indirect_object)) = object.map(|o| o.data) {
+            if let Some(StoreData::IndirectObject(indirect_object)) =
+                object.map(|o| o.into_inner().data)
+            {
                 *indirect_objects.entry(indirect_object.digest).or_default() -= 1;
             }
         }
@@ -354,7 +356,7 @@ mod tests {
                     &db.objects,
                     [(ObjectKey(id, SequenceNumber::from(i)), obj.clone())],
                 )?;
-                if let StoreData::IndirectObject(metadata) = obj.data {
+                if let StoreData::IndirectObject(metadata) = obj.into_inner().data {
                     batch = batch.merge_batch(
                         &db.indirect_move_objects,
                         [(metadata.digest, indirect_obj.unwrap())],
