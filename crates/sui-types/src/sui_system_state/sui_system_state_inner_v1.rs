@@ -8,13 +8,21 @@ use crate::committee::{
     Committee, CommitteeWithNetworkMetadata, NetworkMetadata, ProtocolVersion, StakeUnit,
 };
 use crate::crypto::AuthorityPublicKeyBytes;
+use crate::dynamic_field::{derive_dynamic_field_id, Field};
+use crate::error::SuiError;
+use crate::storage::ObjectStore;
+use crate::sui_serde::Readable;
+use crate::{balance::Balance, id::UID, SUI_FRAMEWORK_ADDRESS, SUI_SYSTEM_STATE_OBJECT_ID};
 use anemo::PeerId;
 use anyhow::Result;
+use enum_dispatch::enum_dispatch;
+use fastcrypto::encoding::Base58;
 use fastcrypto::traits::ToFromBytes;
 use multiaddr::Multiaddr;
 use narwhal_config::{Committee as NarwhalCommittee, WorkerCache, WorkerIndex};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 use std::collections::{BTreeMap, HashMap};
 
 use super::sui_system_state_summary::{SuiSystemStateSummary, SuiValidatorSummary};
@@ -36,29 +44,54 @@ pub struct SystemParameters {
     pub governance_start_epoch: u64,
 }
 
+#[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
 pub struct ValidatorMetadata {
     pub sui_address: SuiAddress,
+    #[schemars(with = "Base58")]
+    #[serde_as(as = "Readable<Base58, _>")]
     pub protocol_pubkey_bytes: Vec<u8>,
+    #[schemars(with = "Base58")]
+    #[serde_as(as = "Readable<Base58, _>")]
     pub network_pubkey_bytes: Vec<u8>,
+    #[schemars(with = "Base58")]
+    #[serde_as(as = "Readable<Base58, _>")]
     pub worker_pubkey_bytes: Vec<u8>,
+    #[schemars(with = "Base58")]
+    #[serde_as(as = "Readable<Base58, _>")]
     pub proof_of_possession_bytes: Vec<u8>,
     pub name: String,
     pub description: String,
     pub image_url: String,
     pub project_url: String,
-    pub net_address: Vec<u8>,
-    pub p2p_address: Vec<u8>,
-    pub primary_address: Vec<u8>,
-    pub worker_address: Vec<u8>,
+    #[schemars(with = "String")]
+    pub net_address: Multiaddr,
+    #[schemars(with = "String")]
+    pub p2p_address: Multiaddr,
+    #[schemars(with = "String")]
+    pub primary_address: Multiaddr,
+    #[schemars(with = "String")]
+    pub worker_address: Multiaddr,
+    #[schemars(with = "Option<Base58>")]
+    #[serde_as(as = "Readable<Option<Base58>, _>")]
     pub next_epoch_protocol_pubkey_bytes: Option<Vec<u8>>,
+    #[schemars(with = "Option<Base58>")]
+    #[serde_as(as = "Readable<Option<Base58>, _>")]
     pub next_epoch_proof_of_possession: Option<Vec<u8>>,
+    #[schemars(with = "Option<Base58>")]
+    #[serde_as(as = "Readable<Option<Base58>, _>")]
     pub next_epoch_network_pubkey_bytes: Option<Vec<u8>>,
+    #[schemars(with = "Option<Base58>")]
+    #[serde_as(as = "Readable<Option<Base58>, _>")]
     pub next_epoch_worker_pubkey_bytes: Option<Vec<u8>>,
-    pub next_epoch_net_address: Option<Vec<u8>>,
-    pub next_epoch_p2p_address: Option<Vec<u8>>,
-    pub next_epoch_primary_address: Option<Vec<u8>>,
-    pub next_epoch_worker_address: Option<Vec<u8>>,
+    #[schemars(with = "Option<String>")]
+    pub next_epoch_net_address: Option<Multiaddr>,
+    #[schemars(with = "Option<String>")]
+    pub next_epoch_p2p_address: Option<Multiaddr>,
+    #[schemars(with = "Option<String>")]
+    pub next_epoch_primary_address: Option<Multiaddr>,
+    #[schemars(with = "Option<String>")]
+    pub next_epoch_worker_address: Option<Multiaddr>,
 }
 
 #[derive(Debug, Clone)]
@@ -270,6 +303,18 @@ pub struct StakingPool {
     pub pending_delegation: u64,
     pub pending_total_sui_withdraw: u64,
     pub pending_pool_token_withdraw: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
+pub struct PoolTokenExchangeRate {
+    sui_amount: u64,
+    pool_token_amount: u64,
+}
+
+impl PoolTokenExchangeRate {
+    pub fn rate(&self) -> f64 {
+        self.pool_token_amount as f64 / self.sui_amount as f64
+    }
 }
 
 /// Rust version of the Move sui::validator_set::ValidatorPair type
@@ -523,6 +568,21 @@ impl SuiSystemStateTrait for SuiSystemStateInnerV1 {
                 })
                 .collect(),
         }
+    }
+
+    fn staking_pool_mappings(&self) -> &Table {
+        &self.validators.staking_pool_mappings
+    }
+
+    fn get_staking_pool(&self, pool_id: &ObjectID) -> Option<&StakingPool> {
+        // TODO: search deleted pool when it's available
+        self.validators.active_validators.iter().find_map(|v| {
+            if &v.staking_pool.id == pool_id {
+                Some(&v.staking_pool)
+            } else {
+                None
+            }
+        })
     }
 }
 

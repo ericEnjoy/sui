@@ -7,10 +7,10 @@ use jsonrpsee::http_client::HttpClient;
 use jsonrpsee::RpcModule;
 use sui_json_rpc::api::{GovernanceReadApiClient, GovernanceReadApiServer};
 use sui_json_rpc::SuiRpcModule;
+use sui_json_rpc_types::DelegatedStake;
 use sui_json_rpc_types::{SuiCommittee, SuiSystemStateRpc};
 use sui_open_rpc::Module;
 use sui_types::base_types::{EpochId, SuiAddress};
-use sui_types::governance::DelegatedStake;
 use sui_types::sui_system_state::sui_system_state_inner_v1::ValidatorMetadata;
 use sui_types::sui_system_state::sui_system_state_summary::SuiSystemStateSummary;
 

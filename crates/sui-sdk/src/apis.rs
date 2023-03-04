@@ -13,8 +13,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use sui_json_rpc::api::GovernanceReadApiClient;
 use sui_json_rpc_types::{
-    Balance, Checkpoint, CheckpointId, Coin, CoinPage, DryRunTransactionResponse, DynamicFieldPage,
-    EventPage, SuiCoinMetadata, SuiCommittee, SuiEventEnvelope, SuiEventFilter,
+    Balance, Checkpoint, CheckpointId, Coin, CoinPage, DelegatedStake, DryRunTransactionResponse,
+    DynamicFieldPage, EventPage, SuiCoinMetadata, SuiCommittee, SuiEventEnvelope, SuiEventFilter,
     SuiMoveNormalizedModule, SuiObjectDataOptions, SuiObjectInfo, SuiObjectResponse,
     SuiPastObjectResponse, SuiSystemStateRpc, SuiTransactionEffectsAPI, SuiTransactionResponse,
     TransactionsPage,
@@ -33,7 +33,6 @@ use sui_types::sui_system_state::sui_system_state_inner_v1::ValidatorMetadata;
 
 use futures::StreamExt;
 use sui_json_rpc::api::{CoinReadApiClient, EventReadApiClient, ReadApiClient, WriteApiClient};
-use sui_types::governance::DelegatedStake;
 
 #[derive(Debug)]
 pub struct ReadApi {

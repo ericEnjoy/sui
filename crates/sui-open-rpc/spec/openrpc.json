@@ -3332,64 +3332,96 @@
       "DelegatedStake": {
         "type": "object",
         "required": [
-          "delegation_status",
-          "staked_sui"
+          "delegations",
+          "stakingPool",
+          "validatorAddress"
         ],
         "properties": {
-          "delegation_status": {
-            "$ref": "#/components/schemas/DelegationStatus"
+          "delegations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Delegation"
+            }
           },
-          "staked_sui": {
-            "$ref": "#/components/schemas/StakedSui"
+          "stakingPool": {
+            "$ref": "#/components/schemas/ObjectID"
+          },
+          "validatorAddress": {
+            "$ref": "#/components/schemas/SuiAddress"
           }
         }
       },
       "Delegation": {
         "type": "object",
-        "required": [
-          "id",
-          "pool_tokens",
-          "principal_sui_amount",
-          "staked_sui_id"
-        ],
-        "properties": {
-          "id": {
-            "$ref": "#/components/schemas/UID"
-          },
-          "pool_tokens": {
-            "$ref": "#/components/schemas/Balance"
-          },
-          "principal_sui_amount": {
-            "type": "integer",
-            "format": "uint64",
-            "minimum": 0.0
-          },
-          "staked_sui_id": {
-            "$ref": "#/components/schemas/ObjectID"
-          }
-        }
-      },
-      "DelegationStatus": {
         "oneOf": [
           {
-            "type": "string",
-            "enum": [
-              "Pending"
-            ]
+            "type": "object",
+            "required": [
+              "status"
+            ],
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "Pending"
+                ]
+              }
+            }
           },
           {
             "type": "object",
             "required": [
-              "Active"
+              "estimatedReward",
+              "status"
             ],
             "properties": {
-              "Active": {
-                "$ref": "#/components/schemas/Delegation"
+              "estimatedReward": {
+                "type": "integer",
+                "format": "uint64",
+                "minimum": 0.0
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "Active"
+                ]
               }
-            },
-            "additionalProperties": false
+            }
           }
-        ]
+        ],
+        "required": [
+          "delegationRequestEpoch",
+          "principal",
+          "stakedSuiId"
+        ],
+        "properties": {
+          "delegationRequestEpoch": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          "principal": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          "stakedSuiId": {
+            "description": "ID of the stake receipt object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ObjectID"
+              }
+            ]
+          },
+          "tokenLock": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint64",
+            "minimum": 0.0
+          }
+        }
       },
       "DevInspectResults": {
         "description": "The response from processing a dev inspect transaction",
@@ -5672,43 +5704,6 @@
           }
         }
       },
-      "StakedSui": {
-        "type": "object",
-        "required": [
-          "delegation_request_epoch",
-          "id",
-          "pool_id",
-          "principal",
-          "validator_address"
-        ],
-        "properties": {
-          "delegation_request_epoch": {
-            "type": "integer",
-            "format": "uint64",
-            "minimum": 0.0
-          },
-          "id": {
-            "$ref": "#/components/schemas/UID"
-          },
-          "pool_id": {
-            "$ref": "#/components/schemas/ObjectID"
-          },
-          "principal": {
-            "$ref": "#/components/schemas/Balance"
-          },
-          "sui_token_lock": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "uint64",
-            "minimum": 0.0
-          },
-          "validator_address": {
-            "$ref": "#/components/schemas/SuiAddress"
-          }
-        }
-      },
       "StakingPool": {
         "description": "Rust version of the Move sui::staking_pool::StakingPool type",
         "type": "object",
@@ -7633,18 +7628,6 @@
       "TypeTag": {
         "type": "string"
       },
-      "UID": {
-        "description": "Rust version of the Move sui::object::Info type",
-        "type": "object",
-        "required": [
-          "id"
-        ],
-        "properties": {
-          "id": {
-            "$ref": "#/components/schemas/ObjectID"
-          }
-        }
-      },
       "Validator": {
         "description": "Rust version of the Move sui::validator::Validator type",
         "type": "object",
@@ -7725,162 +7708,98 @@
             "type": "string"
           },
           "net_address": {
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "format": "uint8",
-              "minimum": 0.0
-            }
+            "type": "string"
           },
           "network_pubkey_bytes": {
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "format": "uint8",
-              "minimum": 0.0
-            }
+            "$ref": "#/components/schemas/Base58"
           },
           "next_epoch_net_address": {
             "type": [
-              "array",
+              "string",
               "null"
-            ],
-            "items": {
-              "type": "integer",
-              "format": "uint8",
-              "minimum": 0.0
-            }
+            ]
           },
           "next_epoch_network_pubkey_bytes": {
-            "type": [
-              "array",
-              "null"
-            ],
-            "items": {
-              "type": "integer",
-              "format": "uint8",
-              "minimum": 0.0
-            }
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Base58"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "next_epoch_p2p_address": {
             "type": [
-              "array",
+              "string",
               "null"
-            ],
-            "items": {
-              "type": "integer",
-              "format": "uint8",
-              "minimum": 0.0
-            }
+            ]
           },
           "next_epoch_primary_address": {
             "type": [
-              "array",
+              "string",
               "null"
-            ],
-            "items": {
-              "type": "integer",
-              "format": "uint8",
-              "minimum": 0.0
-            }
+            ]
           },
           "next_epoch_proof_of_possession": {
-            "type": [
-              "array",
-              "null"
-            ],
-            "items": {
-              "type": "integer",
-              "format": "uint8",
-              "minimum": 0.0
-            }
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Base58"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "next_epoch_protocol_pubkey_bytes": {
-            "type": [
-              "array",
-              "null"
-            ],
-            "items": {
-              "type": "integer",
-              "format": "uint8",
-              "minimum": 0.0
-            }
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Base58"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "next_epoch_worker_address": {
             "type": [
-              "array",
+              "string",
               "null"
-            ],
-            "items": {
-              "type": "integer",
-              "format": "uint8",
-              "minimum": 0.0
-            }
+            ]
           },
           "next_epoch_worker_pubkey_bytes": {
-            "type": [
-              "array",
-              "null"
-            ],
-            "items": {
-              "type": "integer",
-              "format": "uint8",
-              "minimum": 0.0
-            }
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Base58"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "p2p_address": {
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "format": "uint8",
-              "minimum": 0.0
-            }
+            "type": "string"
           },
           "primary_address": {
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "format": "uint8",
-              "minimum": 0.0
-            }
+            "type": "string"
           },
           "project_url": {
             "type": "string"
           },
           "proof_of_possession_bytes": {
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "format": "uint8",
-              "minimum": 0.0
-            }
+            "$ref": "#/components/schemas/Base58"
           },
           "protocol_pubkey_bytes": {
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "format": "uint8",
-              "minimum": 0.0
-            }
+            "$ref": "#/components/schemas/Base58"
           },
           "sui_address": {
             "$ref": "#/components/schemas/SuiAddress"
           },
           "worker_address": {
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "format": "uint8",
-              "minimum": 0.0
-            }
+            "type": "string"
           },
           "worker_pubkey_bytes": {
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "format": "uint8",
-              "minimum": 0.0
-            }
+            "$ref": "#/components/schemas/Base58"
           }
         }
       },

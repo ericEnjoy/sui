@@ -24,6 +24,7 @@ use prometheus::{
     IntCounterVec, IntGauge, Registry,
 };
 use serde::de::DeserializeOwned;
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -68,7 +69,7 @@ use sui_storage::{
 };
 use sui_types::committee::{EpochId, ProtocolVersion};
 use sui_types::crypto::{sha3_hash, AuthorityKeyPair, NetworkKeyPair, Signer};
-use sui_types::dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType};
+use sui_types::dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType, Field};
 use sui_types::event::{Event, EventID};
 use sui_types::gas::{GasCostSummary, GasPrice, SuiCostTable, SuiGasStatus};
 use sui_types::messages_checkpoint::{
@@ -79,7 +80,7 @@ use sui_types::messages_checkpoint::{CheckpointRequest, CheckpointResponse};
 use sui_types::object::{MoveObject, Owner, PastObjectRead};
 use sui_types::query::{EventQuery, TransactionQuery};
 use sui_types::storage::{ObjectKey, WriteKind};
-use sui_types::sui_system_state::SuiSystemState;
+use sui_types::sui_system_state::{SuiSystemState, Table};
 use sui_types::temporary_store::InnerTemporaryStore;
 pub use sui_types::temporary_store::TemporaryStore;
 use sui_types::{
@@ -1914,7 +1915,7 @@ impl AuthorityState {
         }
     }
 
-    async fn get_move_object<T>(&self, object_id: &ObjectID) -> SuiResult<T>
+    pub async fn get_move_object<T>(&self, object_id: &ObjectID) -> SuiResult<T>
     where
         T: DeserializeOwned,
     {
@@ -1930,6 +1931,20 @@ impl AuthorityState {
                 error: format!("Provided object : [{object_id}] is not a Move object."),
             })
         }
+    }
+
+    pub async fn read_table<K, V>(&self, table: &Table) -> SuiResult<BTreeMap<K, V>>
+    where
+        K: DeserializeOwned + Ord,
+        V: DeserializeOwned,
+    {
+        let dynamic_field = self.get_dynamic_fields(table.id, None, usize::MAX)?;
+        let mut result = BTreeMap::new();
+        for df in dynamic_field {
+            let field: Field<K, V> = self.get_move_object(&df.object_id).await?;
+            result.insert(field.name, field.value);
+        }
+        Ok(result)
     }
 
     /// This function aims to serve rpc reads on past objects and
