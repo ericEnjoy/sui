@@ -46,7 +46,10 @@ use sui_types::{
     messages::ExecuteTransactionRequestType, object::Owner,
 };
 use sui_types::{error::SuiError, sui_system_state::SuiSystemState};
-use tokio::{task::JoinSet, time::timeout};
+use tokio::{
+    task::JoinSet,
+    time::{timeout, Instant},
+};
 use tracing::{error, info};
 
 pub mod benchmark_setup;
@@ -307,6 +310,8 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
     async fn execute_bench_transaction(&self, tx: Transaction) -> anyhow::Result<ExecutionEffects> {
         // Store the epoch number; we read it from the votes and use it later to create the certificate.
         let mut epoch = 0;
+        // Poor man's timeout.
+        let now = Instant::now();
 
         // Send the transaction to all validators.
         let mut futures = FuturesUnordered::new();
@@ -352,6 +357,10 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
 
             if certificate.is_some() {
                 break;
+            }
+
+            if now.elapsed() > Duration::from_secs(30) {
+                bail!("Timed out getting transaction signed!");
             }
         }
 
@@ -426,6 +435,10 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
 
             if total_stake >= self.committee.quorum_threshold() {
                 break;
+            }
+
+            if now.elapsed() > Duration::from_secs(30) {
+                bail!("Timed out executing transaction!");
             }
         }
 
