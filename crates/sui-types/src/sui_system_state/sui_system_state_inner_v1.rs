@@ -31,13 +31,10 @@ use super::SuiSystemStateTrait;
 const E_METADATA_INVALID_PUBKEY: u64 = 1;
 const E_METADATA_INVALID_NET_PUBKEY: u64 = 2;
 const E_METADATA_INVALID_WORKER_PUBKEY: u64 = 3;
-const E_METADATA_INVALID_NET_ADDR: u64 = 4;
-const E_METADATA_INVALID_P2P_ADDR: u64 = 5;
-const E_METADATA_INVALID_PRIMARY_ADDR: u64 = 6;
-const E_METADATA_INVALID_WORKER_ADDR: u64 = 7;
 
 /// Rust version of the Move sui::sui_system::SystemParameters type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct SystemParameters {
     pub min_validator_stake: u64,
     pub max_validator_candidate_count: u64,
@@ -46,6 +43,7 @@ pub struct SystemParameters {
 
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct ValidatorMetadata {
     pub sui_address: SuiAddress,
     #[schemars(with = "Base58")]
@@ -133,14 +131,10 @@ impl ValidatorMetadata {
         let worker_pubkey =
             narwhal_crypto::NetworkPublicKey::from_bytes(self.worker_pubkey_bytes.as_ref())
                 .map_err(|_| E_METADATA_INVALID_WORKER_PUBKEY)?;
-        let net_address = Multiaddr::try_from(self.net_address.clone())
-            .map_err(|_| E_METADATA_INVALID_NET_ADDR)?;
-        let p2p_address = Multiaddr::try_from(self.p2p_address.clone())
-            .map_err(|_| E_METADATA_INVALID_P2P_ADDR)?;
-        let primary_address = Multiaddr::try_from(self.primary_address.clone())
-            .map_err(|_| E_METADATA_INVALID_PRIMARY_ADDR)?;
-        let worker_address = Multiaddr::try_from(self.worker_address.clone())
-            .map_err(|_| E_METADATA_INVALID_WORKER_ADDR)?;
+        let net_address = self.net_address.clone();
+        let p2p_address = self.p2p_address.clone();
+        let primary_address = self.primary_address.clone();
+        let worker_address = self.worker_address.clone();
 
         let next_epoch_protocol_pubkey = match self.next_epoch_protocol_pubkey_bytes.clone() {
             None => Ok::<Option<narwhal_crypto::PublicKey>, u64>(None),
@@ -167,33 +161,10 @@ impl ValidatorMetadata {
                 )),
             }?;
 
-        let next_epoch_net_address = match self.next_epoch_net_address.clone() {
-            None => Ok::<Option<Multiaddr>, u64>(None),
-            Some(address) => Ok(Some(
-                Multiaddr::try_from(address).map_err(|_| E_METADATA_INVALID_NET_ADDR)?,
-            )),
-        }?;
-
-        let next_epoch_p2p_address = match self.next_epoch_p2p_address.clone() {
-            None => Ok::<Option<Multiaddr>, u64>(None),
-            Some(address) => Ok(Some(
-                Multiaddr::try_from(address).map_err(|_| E_METADATA_INVALID_P2P_ADDR)?,
-            )),
-        }?;
-
-        let next_epoch_primary_address = match self.next_epoch_primary_address.clone() {
-            None => Ok::<Option<Multiaddr>, u64>(None),
-            Some(address) => Ok(Some(
-                Multiaddr::try_from(address).map_err(|_| E_METADATA_INVALID_PRIMARY_ADDR)?,
-            )),
-        }?;
-
-        let next_epoch_worker_address = match self.next_epoch_worker_address.clone() {
-            None => Ok::<Option<Multiaddr>, u64>(None),
-            Some(address) => Ok(Some(
-                Multiaddr::try_from(address).map_err(|_| E_METADATA_INVALID_WORKER_ADDR)?,
-            )),
-        }?;
+        let next_epoch_net_address = self.next_epoch_net_address.clone();
+        let next_epoch_p2p_address = self.next_epoch_p2p_address.clone();
+        let next_epoch_primary_address = self.next_epoch_primary_address.clone();
+        let next_epoch_worker_address = self.next_epoch_worker_address.clone();
 
         Ok(VerifiedValidatorMetadata {
             sui_address: self.sui_address,
@@ -222,17 +193,18 @@ impl ValidatorMetadata {
 }
 
 impl ValidatorMetadata {
-    pub fn network_address(&self) -> Result<Multiaddr> {
-        Multiaddr::try_from(self.net_address.clone()).map_err(Into::into)
+    pub fn network_address(&self) -> Multiaddr {
+        self.net_address.clone()
     }
 
-    pub fn p2p_address(&self) -> Result<Multiaddr> {
-        Multiaddr::try_from(self.p2p_address.clone()).map_err(Into::into)
+    pub fn p2p_address(&self) -> Multiaddr {
+        self.p2p_address.clone()
     }
 }
 
 /// Rust version of the Move sui::validator::Validator type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct Validator {
     pub metadata: ValidatorMetadata,
     pub voting_power: u64,
@@ -292,6 +264,7 @@ pub struct PendingWithdrawEntry {
 
 /// Rust version of the Move sui::staking_pool::StakingPool type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct StakingPool {
     pub id: ObjectID,
     pub starting_epoch: u64,
@@ -326,6 +299,7 @@ pub struct ValidatorPair {
 
 /// Rust version of the Move sui::validator_set::ValidatorSet type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct ValidatorSet {
     pub total_stake: u64,
     pub active_validators: Vec<Validator>,
@@ -338,6 +312,7 @@ pub struct ValidatorSet {
 /// Rust version of the Move sui::sui_system::SuiSystemStateInner type
 /// We want to keep it named as SuiSystemState in Rust since this is the primary interface type.
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct SuiSystemStateInnerV1 {
     pub epoch: u64,
     pub protocol_version: u64,
@@ -353,6 +328,7 @@ pub struct SuiSystemStateInnerV1 {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct StakeSubsidy {
     pub epoch_counter: u64,
     pub balance: Balance,

@@ -143,8 +143,7 @@ impl GovernanceReadApiServer for GovernanceReadApi {
     }
 
     async fn get_sui_system_state(&self) -> RpcResult<SuiSystemStateRpc> {
-        Ok(self.get_system_state()?
-            .into())
+        Ok(self.get_system_state()?.into())
     }
 
     async fn get_latest_sui_system_state(&self) -> RpcResult<SuiSystemStateSummary> {
