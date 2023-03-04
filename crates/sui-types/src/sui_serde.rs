@@ -180,7 +180,7 @@ impl SerializeAs<Vec<u8>> for AsMultiaddr {
         S: Serializer,
     {
         multiaddr::Multiaddr::try_from(value.clone())
-            .map_err(|e| S::Error::custom(e))?
+            .map_err(S::Error::custom)?
             .serialize(serializer)
     }
 }
