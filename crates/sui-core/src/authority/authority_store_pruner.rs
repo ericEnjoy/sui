@@ -235,7 +235,7 @@ mod tests {
 
     use crate::authority::authority_store_pruner::DeletionMethod;
     use crate::authority::authority_store_tables::AuthorityPerpetualTables;
-    use crate::authority::authority_store_types::{StoreData, StoreObject, StoreObjectPair};
+    use crate::authority::authority_store_types::{StoreData, StoreObjectPair, StoreObjectWrapper};
     #[cfg(not(target_env = "msvc"))]
     use pprof::Symbol;
     use sui_types::base_types::{ObjectDigest, VersionNumber};
@@ -269,7 +269,7 @@ mod tests {
         );
 
         let mut after_pruning = HashSet::new();
-        let objects = DBMap::<ObjectKey, StoreObject>::reopen(
+        let objects = DBMap::<ObjectKey, StoreObjectWrapper>::reopen(
             &perpetual_db?,
             Some("objects"),
             // open the db to bypass default db options which ignores range tombstones
@@ -296,7 +296,7 @@ mod tests {
     }
 
     fn insert_keys(
-        objects: &DBMap<ObjectKey, StoreObject>,
+        objects: &DBMap<ObjectKey, StoreObjectWrapper>,
     ) -> Result<TransactionEffects, anyhow::Error> {
         let mut to_delete = vec![];
         let num_versions_to_keep = 2;
@@ -320,7 +320,7 @@ mod tests {
     }
 
     fn read_keys(
-        objects: &DBMap<ObjectKey, StoreObject>,
+        objects: &DBMap<ObjectKey, StoreObjectWrapper>,
         num_reads: u32,
     ) -> Result<(), anyhow::Error> {
         let mut i = 0;

@@ -552,7 +552,7 @@ impl AuthorityStore {
         if let Some(indirect_obj) = indirect_object {
             write_batch = write_batch.insert_batch(
                 &self.perpetual_tables.indirect_move_objects,
-                std::iter::once((indirect_obj.digest(), indirect_obj)),
+                std::iter::once((indirect_obj.inner().digest(), indirect_obj)),
             )?;
         }
 
@@ -597,7 +597,7 @@ impl AuthorityStore {
                 &self.perpetual_tables.indirect_move_objects,
                 ref_and_objects.iter().filter_map(|(_, o)| {
                     let StoreObjectPair(_, indirect_object) = (**o).clone().into();
-                    indirect_object.map(|obj| (obj.digest(), obj))
+                    indirect_object.map(|obj| (obj.inner().digest(), obj))
                 }),
             )?
             .insert_batch(
@@ -735,7 +735,7 @@ impl AuthorityStore {
                 let StoreObjectPair(store_object, indirect_object) = new_object.clone().into();
                 (
                     (ObjectKey::from(obj_ref), store_object),
-                    indirect_object.map(|obj| (obj.digest(), obj)),
+                    indirect_object.map(|obj| (obj.inner().digest(), obj)),
                 )
             })
             .unzip();
@@ -804,9 +804,8 @@ impl AuthorityStore {
             .owned_object_transaction_locks
             .multi_get(owned_input_objects)?;
 
-        for ((i, lock), obj_ref) in locks.iter().enumerate().zip(owned_input_objects) {
+        for ((i, lock), obj_ref) in locks.into_iter().enumerate().zip(owned_input_objects) {
             // The object / version must exist, and therefore lock initialized.
-            let lock = lock.as_ref();
             if lock.is_none() {
                 let latest_lock = self.get_latest_lock_for_object_id(obj_ref.0)?;
                 fp_bail!(UserInputError::ObjectVersionUnavailableForConsumption {
@@ -816,12 +815,12 @@ impl AuthorityStore {
                 .into());
             }
             // Safe to unwrap as it is checked above
-            let lock = lock.unwrap();
+            let lock = lock.unwrap().map(|l| l.migrate().into_inner());
 
             if let Some(LockDetails {
                 epoch: previous_epoch,
                 tx_digest: previous_tx_digest,
-            }) = lock
+            }) = &lock
             {
                 fp_ensure!(
                     &epoch >= previous_epoch,
@@ -853,7 +852,8 @@ impl AuthorityStore {
                 }
             }
             let obj_ref = owned_input_objects[i];
-            locks_to_write.push((obj_ref, Some(LockDetails { epoch, tx_digest })));
+            let lock_details = LockDetails { epoch, tx_digest };
+            locks_to_write.push((obj_ref, Some(lock_details.into())));
         }
 
         if !locks_to_write.is_empty() {
@@ -883,6 +883,7 @@ impl AuthorityStore {
             {
                 match lock_info {
                     Some(lock_info) => {
+                        let lock_info = lock_info.migrate().into_inner();
                         match Ord::cmp(&lock_info.epoch, &epoch_id) {
                             // If the object was locked in a previous epoch, we can say that it's
                             // no longer locked and is considered as just Initialized.
@@ -1324,9 +1325,52 @@ pub enum ObjectLockStatus {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct LockDetails {
+pub enum LockDetailsWrapper {
+    V1(LockDetailsV1),
+}
+
+impl LockDetailsWrapper {
+    pub fn migrate(self) -> Self {
+        // TODO: when there are multiple versions, we must iteratively migrate from version N to
+        // N+1 until we arrive at the latest version
+        self
+    }
+
+    // Always returns the most recent version. Older versions are migrated to the latest version at
+    // read time, so there is never a need to access older versions.
+    pub fn inner(&self) -> &LockDetails {
+        match self {
+            Self::V1(v1) => v1,
+
+            // can remove #[allow] when there are multiple versions
+            #[allow(unreachable_patterns)]
+            _ => panic!("lock details should have been migrated to latest version at read time"),
+        }
+    }
+    pub fn into_inner(self) -> LockDetails {
+        match self {
+            Self::V1(v1) => v1,
+
+            // can remove #[allow] when there are multiple versions
+            #[allow(unreachable_patterns)]
+            _ => panic!("lock details should have been migrated to latest version at read time"),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LockDetailsV1 {
     pub epoch: EpochId,
     pub tx_digest: TransactionDigest,
+}
+
+pub type LockDetails = LockDetailsV1;
+
+impl From<LockDetails> for LockDetailsWrapper {
+    fn from(details: LockDetails) -> Self {
+        // always use latest version.
+        LockDetailsWrapper::V1(details)
+    }
 }
 
 /// A potential input to a transaction.

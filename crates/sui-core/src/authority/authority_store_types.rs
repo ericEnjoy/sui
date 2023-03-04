@@ -37,24 +37,23 @@ use sui_types::object::{Data, MoveObject, Object, Owner};
 
 /// Enum wrapper for versioning
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
-pub enum StoreObject {
+pub enum StoreObjectWrapper {
     V1(StoreObjectV1),
 }
 
-impl StoreObject {
-    fn new(v1: StoreObjectV1) -> Self {
-        Self::V1(v1)
-    }
+// always points to latest version.
+pub type StoreObject = StoreObjectV1;
 
-    pub fn migrate(s: Self) -> Self {
+impl StoreObjectWrapper {
+    pub fn migrate(self) -> Self {
         // TODO: when there are multiple versions, we must iteratively migrate from version N to
         // N+1 until we arrive at the latest version
-        s
+        self
     }
 
     // Always returns the most recent version. Older versions are migrated to the latest version at
     // read time, so there is never a need to access older versions.
-    pub fn inner(&self) -> &StoreObjectV1 {
+    pub fn inner(&self) -> &StoreObject {
         match self {
             Self::V1(v1) => v1,
 
@@ -63,7 +62,7 @@ impl StoreObject {
             _ => panic!("object should have been migrated to latest version at read time"),
         }
     }
-    pub fn into_inner(self) -> StoreObjectV1 {
+    pub fn into_inner(self) -> StoreObject {
         match self {
             Self::V1(v1) => v1,
 
@@ -71,6 +70,12 @@ impl StoreObject {
             #[allow(unreachable_patterns)]
             _ => panic!("object should have been migrated to latest version at read time"),
         }
+    }
+}
+
+impl From<StoreObject> for StoreObjectWrapper {
+    fn from(o: StoreObject) -> Self {
+        StoreObjectWrapper::V1(o)
     }
 }
 
@@ -102,24 +107,23 @@ pub struct IndirectObjectMetadata {
 
 /// Enum wrapper for versioning
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
-pub enum StoreMoveObject {
+pub enum StoreMoveObjectWrapper {
     V1(StoreMoveObjectV1),
 }
 
-impl StoreMoveObject {
-    fn new(v1: StoreMoveObjectV1) -> Self {
-        Self::V1(v1)
-    }
+// Always points to latest version.
+pub type StoreMoveObject = StoreMoveObjectV1;
 
-    pub fn migrate(s: Self) -> Self {
+impl StoreMoveObjectWrapper {
+    pub fn migrate(self) -> Self {
         // TODO: when there are multiple versions, we must iteratively migrate from version N to
         // N+1 until we arrive at the latest version
-        s
+        self
     }
 
     // Always returns the most recent version. Older versions are migrated to the latest version at
     // read time, so there is never a need to access older versions.
-    pub fn inner(&self) -> &StoreMoveObjectV1 {
+    pub fn inner(&self) -> &StoreMoveObject {
         match self {
             Self::V1(v1) => v1,
 
@@ -128,7 +132,7 @@ impl StoreMoveObject {
             _ => panic!("object should have been migrated to latest version at read time"),
         }
     }
-    pub fn into_inner(self) -> StoreMoveObjectV1 {
+    pub fn into_inner(self) -> StoreMoveObject {
         match self {
             Self::V1(v1) => v1,
 
@@ -136,6 +140,12 @@ impl StoreMoveObject {
             #[allow(unreachable_patterns)]
             _ => panic!("object should have been migrated to latest version at read time"),
         }
+    }
+}
+
+impl From<StoreMoveObject> for StoreMoveObjectWrapper {
+    fn from(o: StoreMoveObject) -> Self {
+        StoreMoveObjectWrapper::V1(o)
     }
 }
 
@@ -168,7 +178,7 @@ impl StoreMoveObject {
     }
 }
 
-pub struct StoreObjectPair(pub StoreObject, pub Option<StoreMoveObject>);
+pub struct StoreObjectPair(pub StoreObjectWrapper, pub Option<StoreMoveObjectWrapper>);
 
 impl From<Object> for StoreObjectPair {
     fn from(object: Object) -> Self {
@@ -179,12 +189,12 @@ impl From<Object> for StoreObjectPair {
             Data::Move(move_obj) => {
                 // TODO: add real heuristic to decide if object needs to be stored indirectly
                 if cfg!(test) {
-                    let move_object = StoreMoveObject::new(StoreMoveObjectV1 {
+                    let move_object = StoreMoveObject {
                         type_: move_obj.type_.clone(),
                         has_public_transfer: move_obj.has_public_transfer(),
                         contents: move_obj.contents().to_vec(),
                         ref_count: 1,
-                    });
+                    };
                     let digest = move_object.digest();
                     indirect_object = Some(move_object);
                     StoreData::IndirectObject(IndirectObjectMetadata {
@@ -196,25 +206,22 @@ impl From<Object> for StoreObjectPair {
                 }
             }
         };
-        let store_object = StoreObject::new(StoreObjectV1 {
+        let store_object = StoreObject {
             data,
             owner: object.owner,
             previous_transaction: object.previous_transaction,
             storage_rebate: object.storage_rebate,
-        });
-        Self(store_object, indirect_object)
+        };
+        Self(store_object.into(), indirect_object.map(|i| i.into()))
     }
 }
 
-impl TryFrom<StoreObjectPair> for Object {
+pub struct MigratedStoreObjectPair(pub StoreObject, pub Option<StoreMoveObject>);
+impl TryFrom<MigratedStoreObjectPair> for Object {
     type Error = SuiError;
 
-    fn try_from(object: StoreObjectPair) -> Result<Self, Self::Error> {
-        let StoreObjectPair(store_object, indirect_object) = object;
-
-        // Ensure we have latest format
-        let store_object = StoreObject::migrate(store_object).into_inner();
-        let indirect_object = indirect_object.map(|i| StoreMoveObject::migrate(i).into_inner());
+    fn try_from(object: MigratedStoreObjectPair) -> Result<Self, Self::Error> {
+        let MigratedStoreObjectPair(store_object, indirect_object) = object;
 
         let data = match (store_object.data, indirect_object) {
             (StoreData::Move(object), None) => Data::Move(object),
