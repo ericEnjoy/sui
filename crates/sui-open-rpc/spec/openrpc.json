@@ -5708,56 +5708,56 @@
         "description": "Rust version of the Move sui::staking_pool::StakingPool type",
         "type": "object",
         "required": [
-          "deactivation_epoch",
-          "exchange_rates",
+          "deactivationEpoch",
+          "exchangeRates",
           "id",
-          "pending_delegation",
-          "pending_pool_token_withdraw",
-          "pending_total_sui_withdraw",
-          "pool_token_balance",
-          "rewards_pool",
-          "starting_epoch",
-          "sui_balance"
+          "pendingDelegation",
+          "pendingPoolTokenWithdraw",
+          "pendingTotalSuiWithdraw",
+          "poolTokenBalance",
+          "rewardsPool",
+          "startingEpoch",
+          "suiBalance"
         ],
         "properties": {
-          "deactivation_epoch": {
+          "deactivationEpoch": {
             "$ref": "#/components/schemas/MoveOption_for_uint64"
           },
-          "exchange_rates": {
+          "exchangeRates": {
             "$ref": "#/components/schemas/Table"
           },
           "id": {
             "$ref": "#/components/schemas/ObjectID"
           },
-          "pending_delegation": {
+          "pendingDelegation": {
             "type": "integer",
             "format": "uint64",
             "minimum": 0.0
           },
-          "pending_pool_token_withdraw": {
+          "pendingPoolTokenWithdraw": {
             "type": "integer",
             "format": "uint64",
             "minimum": 0.0
           },
-          "pending_total_sui_withdraw": {
+          "pendingTotalSuiWithdraw": {
             "type": "integer",
             "format": "uint64",
             "minimum": 0.0
           },
-          "pool_token_balance": {
+          "poolTokenBalance": {
             "type": "integer",
             "format": "uint64",
             "minimum": 0.0
           },
-          "rewards_pool": {
+          "rewardsPool": {
             "$ref": "#/components/schemas/Balance"
           },
-          "starting_epoch": {
+          "startingEpoch": {
             "type": "integer",
             "format": "uint64",
             "minimum": 0.0
           },
-          "sui_balance": {
+          "suiBalance": {
             "type": "integer",
             "format": "uint64",
             "minimum": 0.0
