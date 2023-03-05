@@ -133,7 +133,7 @@ describe('Transaction Serialization and deserialization', () => {
       toolbox.address(),
     );
 
-    const [{ sui_address: validator_address }] =
+    const [{ suiAddress: validatorAddress }] =
       await toolbox.getActiveValidators();
 
     const moveCall = {
@@ -145,7 +145,7 @@ describe('Transaction Serialization and deserialization', () => {
       arguments: [
         SUI_SYSTEM_STATE_OBJECT_ID,
         coins[2].objectId,
-        validator_address,
+        validatorAddress,
       ],
       gasOwner: toolbox.address(),
       gasBudget: DEFAULT_GAS_BUDGET,

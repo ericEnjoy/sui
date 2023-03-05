@@ -83,7 +83,7 @@ describe('Transaction Builders', () => {
       toolbox.address(),
     );
 
-    const [{ sui_address: validator_address }] =
+    const [{ suiAddress: validatorAddress }] =
       await toolbox.getActiveValidators();
 
     await validateTransaction(signer, {
@@ -96,7 +96,7 @@ describe('Transaction Builders', () => {
         arguments: [
           SUI_SYSTEM_STATE_OBJECT_ID,
           coins[2].objectId,
-          validator_address,
+          validatorAddress,
         ],
         gasBudget: DEFAULT_GAS_BUDGET,
         gasPayment: coins[3].objectId,
