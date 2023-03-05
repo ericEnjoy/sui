@@ -16,12 +16,13 @@ use jsonrpsee::RpcModule;
 use sui_core::authority::AuthorityState;
 use sui_json_rpc_types::{DelegatedStake, Delegation, DelegationStatus};
 use sui_open_rpc::Module;
-use sui_types::base_types::SuiAddress;
+use sui_types::base_types::{ObjectID, SuiAddress};
 use sui_types::committee::EpochId;
 use sui_types::governance::StakedSui;
 use sui_types::messages::{CommitteeInfoRequest, CommitteeInfoResponse};
 use sui_types::sui_system_state::{
-    PoolTokenExchangeRate, SuiSystemState, SuiSystemStateTrait, ValidatorMetadata,
+    PoolTokenExchangeRate, StakingPool, SuiSystemState, SuiSystemStateTrait, Validator,
+    ValidatorMetadata,
 };
 use sui_types::governance::{DelegatedStake, Delegation, DelegationStatus, StakedSui};
 use sui_types::sui_system_state::SuiSystemStateTrait;
@@ -68,9 +69,12 @@ impl GovernanceReadApi {
                         "Cannot find validator mapping for staking pool {pool_id}"
                     ))
                 })?;
-            let pool = system_state.get_staking_pool(&pool_id).ok_or_else(|| {
-                Error::UnexpectedError(format!("Cannot find staking pool [{pool_id}]"))
-            })?;
+            let pool = self
+                .get_staking_pool(&system_state, &pool_id)
+                .await
+                .ok_or_else(|| {
+                    Error::UnexpectedError(format!("Cannot find staking pool [{pool_id}]"))
+                })?;
 
             let current_rate: PoolTokenExchangeRate = self
                 .state
@@ -124,6 +128,29 @@ impl GovernanceReadApi {
 
     fn get_system_state(&self) -> Result<SuiSystemState, Error> {
         Ok(self.state.database.get_sui_system_state_object()?)
+    }
+
+    async fn get_staking_pool(
+        &self,
+        system_state: &SuiSystemState,
+        pool_id: &ObjectID,
+    ) -> Option<StakingPool> {
+        let active_validators: &Vec<Validator> = system_state.active_validators();
+        let active_pool = active_validators.iter().find_map(|v| {
+            if &v.staking_pool.id == pool_id {
+                Some(v.staking_pool.clone())
+            } else {
+                None
+            }
+        });
+        // try find from inactive pool
+        if active_pool.is_none() {
+            return self
+                .state
+                .read_table_value(system_state.inactive_pools(), pool_id)
+                .await;
+        }
+        active_pool
     }
 }
 

@@ -590,15 +590,12 @@ impl SuiSystemStateTrait for SuiSystemStateInnerV1 {
         &self.validators.staking_pool_mappings
     }
 
-    fn get_staking_pool(&self, pool_id: &ObjectID) -> Option<&StakingPool> {
-        // TODO: search deleted pool when it's available
-        self.validators.active_validators.iter().find_map(|v| {
-            if &v.staking_pool.id == pool_id {
-                Some(&v.staking_pool)
-            } else {
-                None
-            }
-        })
+    fn active_validators(&self) -> &Vec<Validator> {
+        &self.validators.active_validators
+    }
+
+    fn inactive_pools(&self) -> &Table {
+        &self.validators.inactive_pools
     }
 }
 
