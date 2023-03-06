@@ -73,7 +73,7 @@ impl AuthorityStore {
         if perpetual_tables.database_is_empty()? {
             let epoch_start_configuration = EpochStartConfiguration {
                 system_state: SuiSystemState::new_genesis(genesis.sui_system_object()),
-                epoch_digest: genesis.checkpoint().digest(),
+                epoch_digest: *genesis.checkpoint().digest(),
             };
             perpetual_tables
                 .set_epoch_start_configuration(&epoch_start_configuration)

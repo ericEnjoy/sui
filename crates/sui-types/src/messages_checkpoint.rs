@@ -8,20 +8,14 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::base_types::ExecutionDigests;
 use crate::committee::{EpochId, ProtocolVersion, StakeUnit};
-use crate::crypto::{AuthoritySignInfo, AuthoritySignInfoTrait, AuthorityStrongQuorumSignInfo};
+use crate::crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo};
 use crate::error::SuiResult;
 use crate::gas::GasCostSummary;
-use crate::intent::{Intent, IntentScope};
+use crate::intent::IntentScope;
+use crate::message_envelope::{Envelope, Message, VerifiedEnvelope};
 use crate::signature::GenericSignature;
-use crate::{
-    base_types::AuthorityName,
-    committee::Committee,
-    crypto::{sha3_hash, AuthoritySignature, VerificationObligation},
-    error::SuiError,
-};
-use fastcrypto::traits::Signer;
+use crate::{base_types::AuthorityName, committee::Committee, crypto::sha3_hash, error::SuiError};
 use schemars::JsonSchema;
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 pub use crate::digests::CheckpointContentsDigest;
@@ -98,6 +92,19 @@ pub struct CheckpointSummary {
     pub version_specific_data: Vec<u8>,
 }
 
+impl Message for CheckpointSummary {
+    type DigestType = CheckpointDigest;
+    const SCOPE: IntentScope = IntentScope::CheckpointSummary;
+
+    fn digest(&self) -> Self::DigestType {
+        CheckpointDigest::new(sha3_hash(self))
+    }
+
+    fn verify(&self) -> SuiResult {
+        Ok(())
+    }
+}
+
 impl CheckpointSummary {
     pub fn new(
         epoch: EpochId,
@@ -128,12 +135,14 @@ impl CheckpointSummary {
         &self.sequence_number
     }
 
-    pub fn digest(&self) -> CheckpointDigest {
-        CheckpointDigest::new(sha3_hash(self))
-    }
-
     pub fn timestamp(&self) -> SystemTime {
         UNIX_EPOCH + Duration::from_millis(self.timestamp_ms)
+    }
+
+    pub fn next_epoch_committee(&self) -> Option<&[(AuthorityName, StakeUnit)]> {
+        self.end_of_epoch_data
+            .as_ref()
+            .map(|e| e.next_epoch_committee.as_slice())
     }
 }
 
@@ -151,6 +160,7 @@ impl Display for CheckpointSummary {
     }
 }
 
+/*
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CheckpointSummaryEnvelope<S> {
     pub summary: CheckpointSummary,
@@ -198,7 +208,6 @@ impl<S: Debug> Display for CheckpointSummaryEnvelope<S> {
     }
 }
 
-pub type SignedCheckpointSummary = CheckpointSummaryEnvelope<AuthoritySignInfo>;
 
 impl SignedCheckpointSummary {
     /// Create a new signed checkpoint proposal for this authority
@@ -278,6 +287,7 @@ impl SignedCheckpointSummary {
         Ok(())
     }
 }
+*/
 
 // Checkpoints are signed by an authority and 2f+1 form a
 // certificate that others can use to catch up. The actual
@@ -287,8 +297,40 @@ impl SignedCheckpointSummary {
 // or other authenticated data structures to support light
 // clients and more efficient sync protocols.
 
+pub type CheckpointSummaryEnvelope<S> = Envelope<CheckpointSummary, S>;
 pub type CertifiedCheckpointSummary = CheckpointSummaryEnvelope<AuthorityStrongQuorumSignInfo>;
+pub type SignedCheckpointSummary = CheckpointSummaryEnvelope<AuthoritySignInfo>;
 
+pub type VerifiedCheckpoint = VerifiedEnvelope<CheckpointSummary, AuthorityStrongQuorumSignInfo>;
+
+impl CertifiedCheckpointSummary {
+    pub fn verify_with_contents(
+        &self,
+        committee: &Committee,
+        contents: Option<&CheckpointContents>,
+    ) -> SuiResult {
+        self.verify_signature(committee)?;
+
+        if let Some(contents) = contents {
+            let content_digest = contents.digest();
+            fp_ensure!(
+                content_digest == self.data().content_digest,
+                SuiError::GenericAuthorityError{error:format!("Checkpoint contents digest mismatch: summary={:?}, received content digest {:?}, received {} transactions", self.data(), content_digest, contents.size())}
+            );
+        }
+
+        Ok(())
+    }
+}
+
+impl VerifiedCheckpoint {
+    pub fn into_summary_and_sequence(self) -> (CheckpointSequenceNumber, CheckpointSummary) {
+        let summary = self.into_inner().into_data();
+        (summary.sequence_number, summary)
+    }
+}
+
+/*
 impl CertifiedCheckpointSummary {
     /// Aggregate many checkpoint signatures to form a checkpoint certificate.
     pub fn aggregate(
@@ -360,6 +402,9 @@ impl CertifiedCheckpointSummary {
         Ok(())
     }
 }
+*/
+
+/*
 
 /// A type-safe way to ensure that a checkpoint has been verified
 #[derive(Clone, Debug)]
@@ -403,6 +448,7 @@ impl std::ops::Deref for VerifiedCheckpoint {
         &self.0
     }
 }
+*/
 
 /// This is a message validators publish to consensus in order to sign checkpoint
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -425,7 +471,7 @@ pub struct CheckpointContents {
 
 impl CheckpointSignatureMessage {
     pub fn verify(&self, committee: &Committee) -> SuiResult {
-        self.summary.verify(committee, None)
+        self.summary.verify_signature(committee)
     }
 }
 
@@ -515,6 +561,7 @@ mod tests {
         );
 
         // TODO: duplicated in a test below.
+
         let signed_checkpoints: Vec<_> = keys
             .iter()
             .map(|k| {
@@ -522,27 +569,30 @@ mod tests {
 
                 SignedCheckpointSummary::new(
                     committee.epoch,
-                    1,
-                    0,
-                    name,
+                    CheckpointSummary::new(
+                        committee.epoch,
+                        1,
+                        0,
+                        &set,
+                        None,
+                        GasCostSummary::default(),
+                        None,
+                        0,
+                    ),
                     k,
-                    &set,
-                    None,
-                    GasCostSummary::default(),
-                    None,
-                    0,
+                    name,
                 )
             })
             .collect();
 
         signed_checkpoints
             .iter()
-            .for_each(|c| c.verify(&committee, None).expect("signature ok"));
+            .for_each(|c| c.verify_signature(&committee).expect("signature ok"));
 
         // fails when not signed by member of committee
         signed_checkpoints
             .iter()
-            .for_each(|c| assert!(c.verify(&committee2, None).is_err()));
+            .for_each(|c| assert!(c.verify_signature(&committee2).is_err()));
     }
 
     #[test]
@@ -554,31 +604,33 @@ mod tests {
             [ExecutionDigests::random()].into_iter(),
         );
 
-        let signed_checkpoints: Vec<_> = keys
+        let summary = CheckpointSummary::new(
+            committee.epoch,
+            1,
+            0,
+            &set,
+            None,
+            GasCostSummary::default(),
+            None,
+            0,
+        );
+
+        let sign_infos: Vec<_> = keys
             .iter()
             .map(|k| {
                 let name = k.public().into();
 
-                SignedCheckpointSummary::new(
-                    committee.epoch,
-                    1,
-                    0,
-                    name,
-                    k,
-                    &set,
-                    None,
-                    GasCostSummary::default(),
-                    None,
-                    0,
-                )
+                SignedCheckpointSummary::sign(committee.epoch, &summary, k, name)
             })
             .collect();
 
-        let checkpoint_cert = CertifiedCheckpointSummary::aggregate(signed_checkpoints, &committee)
-            .expect("Cert is OK");
+        let checkpoint_cert =
+            CertifiedCheckpointSummary::new(summary, sign_infos, &committee).expect("Cert is OK");
 
         // Signature is correct on proposal, and with same transactions
-        assert!(checkpoint_cert.verify(&committee, Some(&set)).is_ok());
+        assert!(checkpoint_cert
+            .verify_with_contents(&committee, Some(&set))
+            .is_ok());
 
         // Make a bad proposal
         let signed_checkpoints: Vec<_> = keys
@@ -591,19 +643,27 @@ mod tests {
 
                 SignedCheckpointSummary::new(
                     committee.epoch,
-                    1,
-                    0,
-                    name,
+                    CheckpointSummary::new(
+                        committee.epoch,
+                        1,
+                        0,
+                        &set,
+                        None,
+                        GasCostSummary::default(),
+                        None,
+                        0,
+                    ),
                     k,
-                    &set,
-                    None,
-                    GasCostSummary::default(),
-                    None,
-                    0,
+                    name,
                 )
             })
             .collect();
 
-        assert!(CertifiedCheckpointSummary::aggregate(signed_checkpoints, &committee).is_err());
+        let summary = signed_checkpoints[0].data().clone();
+        let sign_infos = signed_checkpoints
+            .into_iter()
+            .map(|v| v.into_sig())
+            .collect();
+        assert!(CertifiedCheckpointSummary::new(summary, sign_infos, &committee).is_err())
     }
 }
