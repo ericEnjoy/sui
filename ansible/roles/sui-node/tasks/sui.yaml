@@ -1,0 +1,108 @@
+---
+- name: Add a sui user
+  ansible.builtin.user:
+    name: sui
+    shell: /bin/bash
+
+- name: Create sui directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "sui"
+    group: "sui"
+    mode: 0755
+  loop:
+    - /opt/sui/bin
+    - /opt/sui/config
+    - /opt/sui/jeprof
+    - /opt/sui/db
+    - /opt/sui/key-pairs
+
+- name: Copy validator configuration file
+  copy:
+    src: "{{ node_config }}"
+    dest: /opt/sui/config/validator.yaml
+    owner: "sui"
+    group: "sui"
+    mode: 0644
+
+- name: Copy genesis.blob
+  copy:
+    src: "../files/genesis.blob"
+    dest: /opt/sui/config/genesis.blob
+    owner: "sui"
+    group: "sui"
+    mode: 0644
+
+- name: Copy protocol.key
+  copy:
+    src: "../../../../genesis/key-pairs/protocol.key"
+    dest: /opt/sui/key-pairs/protocol.key
+    owner: "sui"
+    group: "sui"
+    mode: 0600
+
+- name: Copy account.key
+  copy:
+    src: "../../../../genesis/key-pairs/account.key"
+    dest: /opt/sui/key-pairs/account.key
+    owner: "sui"
+    group: "sui"
+    mode: 0600
+
+- name: Copy network.key
+  copy:
+    src: "../../../../genesis/key-pairs/network.key"
+    dest: /opt/sui/key-pairs/network.key
+    owner: "sui"
+    group: "sui"
+    mode: 0600
+
+- name: Copy worker.key
+  copy:
+    src: "../../../../genesis/key-pairs/worker.key"
+    dest: /opt/sui/key-pairs/worker.key
+    owner: "sui"
+    group: "sui"
+    mode: 0600
+
+- name: Stop sui-node
+  systemd:
+    name: sui-node
+    state: stopped
+  ignore_errors: yes
+
+- name: Remove authorities directory
+  file:
+    state: absent
+    path: "/opt/sui/db/authorities_db"
+  when: reset_db == true
+
+- name: Remove consensus directory
+  file:
+    state: absent
+    path: "/opt/sui/db/consensus_db"
+  when: reset_db == true
+
+- name: Place binary
+  ansible.builtin.get_url:
+    url: "https://sui-releases.s3.us-east-1.amazonaws.com/18e23a4790560aa10fb6c128744d162fda10b1c3/sui-node"
+    dest: /opt/sui/bin/sui-node
+    force: true
+    mode: "0755"
+
+- name: Copy sui-node systemd service file
+  copy:
+    src: "../files/sui-node.service"
+    dest: /etc/systemd/system/sui-node.service
+
+- name: Reload sui-node systemd service file
+  ansible.builtin.systemd:
+    name: sui-node
+    state: reloaded
+
+- name: Start sui-node service
+  systemd:
+    name: sui-node
+    state: started
+  when: start_sui == true

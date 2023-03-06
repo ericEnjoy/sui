@@ -1,0 +1,7 @@
+---
+validator:
+  hosts:
+    validator:
+      ansible_host: validator.example.com
+      ansible_user: ubuntu
+      node_config: "../config/validator.yaml"
