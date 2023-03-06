@@ -447,14 +447,33 @@ impl SimpleFaucet {
         number_of_coins: usize,
         recipient: &SuiAddress,
     ) -> Result<(TransactionDigest, Vec<ObjectID>, Vec<u64>), FaucetError> {
-        let txns = res.transaction.data.transactions();
+        let txns = res
+            .transaction
+            .as_ref()
+            .ok_or_else(|| {
+                FaucetError::ParseTransactionResponseError(format!(
+                    "transaction field missing for txn {}",
+                    res.digest
+                ))
+            })?
+            .data
+            .transactions();
         if txns.len() != 1 {
             panic!(
                 "PaySui Transaction should create one and exactly one txn, but got {:?}",
                 txns
             );
         }
-        let created = res.effects.created().to_vec();
+        let created = res
+            .effects
+            .ok_or_else(|| {
+                FaucetError::ParseTransactionResponseError(format!(
+                    "effects field missing for txn {}",
+                    res.digest
+                ))
+            })?
+            .created()
+            .to_vec();
         if created.len() != number_of_coins {
             panic!(
                 "PaySui Transaction should create exact {:?} new coins, but got {:?}",
@@ -476,7 +495,7 @@ impl SimpleFaucet {
                 .iter()
                 .map(|created_coin_owner_ref| created_coin_owner_ref.reference.object_id)
                 .collect();
-            Ok((*res.effects.transaction_digest(), coin_ids, amounts.clone()))
+            Ok((res.digest, coin_ids, amounts.clone()))
         } else {
             panic!("Expect SuiTransactionKind::PaySui(SuiPaySui) to send coins to address {} but got txn {:?}", recipient, txn);
         }
@@ -668,7 +687,7 @@ mod tests {
 
         if let SuiClientCommandResult::PayAllSui(response) = res {
             assert!(matches!(
-                response.effects.status(),
+                response.effects.unwrap().status(),
                 SuiExecutionStatus::Success
             ));
         } else {
@@ -724,8 +743,13 @@ mod tests {
         .unwrap();
 
         let tiny_coin_id = if let SuiClientCommandResult::SplitCoin(resp) = res {
-            assert!(matches!(resp.effects.status(), SuiExecutionStatus::Success));
-            resp.effects.created()[0].reference.object_id
+            assert!(matches!(
+                resp.effects.as_ref().unwrap().status(),
+                SuiExecutionStatus::Success
+            ));
+            resp.effects.as_ref().unwrap().created()[0]
+                .reference
+                .object_id
         } else {
             panic!("split command did not return SuiClientCommandResult::SplitCoin");
         };
