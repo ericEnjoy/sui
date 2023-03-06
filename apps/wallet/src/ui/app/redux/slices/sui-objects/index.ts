@@ -18,7 +18,6 @@ import {
 } from '@reduxjs/toolkit';
 
 import { activeAccountSelector } from '../account';
-import { ExampleNFT } from './NFT';
 
 import type { SuiObjectData, SuiAddress, ObjectId } from '@mysten/sui.js';
 import type { RootState } from '_redux/RootReducer';
@@ -99,19 +98,6 @@ export const batchFetchObject = createAsyncThunk<
     }
     return allSuiObjects;
 });
-
-export const mintDemoNFT = createAsyncThunk<void, void, AppThunkConfig>(
-    'mintDemoNFT',
-    async (_, { extra: { api, background }, dispatch, getState }) => {
-        const activeAddress = activeAccountSelector(getState());
-        if (!activeAddress) {
-            throw new Error('Error, active address is not defined');
-        }
-        const signer = api.getSignerInstance(activeAddress, background);
-        await ExampleNFT.mintExampleNFT(signer);
-        await dispatch(fetchAllOwnedAndRequiredObjects());
-    }
-);
 
 type NFTTxResponse = {
     timestampMs?: number;
