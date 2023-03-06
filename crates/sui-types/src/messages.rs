@@ -1912,8 +1912,27 @@ impl TransactionDataAPI for TransactionDataV1 {
         Ok(inputs)
     }
 
-    fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
-        self.kind().validity_check(config, self.gas())?;
+    pub fn execution_parts(&self) -> (TransactionKind, SuiAddress, Vec<ObjectRef>) {
+        (
+            self.kind.clone(),
+            self.sender,
+            self.gas_data.payment.clone(),
+        )
+    }
+
+    pub fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
+        fp_ensure!(!self.gas().is_empty(), UserInputError::MissingGasPayment);
+        self.validity_check_no_gas_check(config, self.gas())
+    }
+
+    // Keep all the logic for validity here, we need this for dry run where the gas
+    // may not be provided and created "on the fly"
+    pub fn validity_check_no_gas_check(
+        &self,
+        config: &ProtocolConfig,
+        gas: &[ObjectRef],
+    ) -> UserInputResult {
+        Self::validity_check_impl(config, &self.kind, gas)?;
         self.check_sponsorship()
     }
 

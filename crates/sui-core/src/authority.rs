@@ -990,12 +990,33 @@ impl AuthorityState {
             return Err(anyhow!("dry-exec is only support on fullnodes"));
         }
 
-        let (gas_status, input_objects) = transaction_input_checker::check_transaction_input(
-            &self.database,
-            epoch_store.as_ref(),
-            &transaction,
-        )
-        .await?;
+        // make a gas object if one was not provided
+        let (gas_status, input_objects) = if transaction.gas().is_empty() {
+            let sender = transaction.sender();
+            let protocol_config = epoch_store.protocol_config();
+            let max_tx_gas = protocol_config.max_tx_gas();
+            let gas_object_id = ObjectID::random();
+            let gas_object = Object::new_move(
+                MoveObject::new_gas_coin(SequenceNumber::new(), gas_object_id, max_tx_gas),
+                Owner::AddressOwner(sender),
+                TransactionDigest::genesis(),
+            );
+            transaction_input_checker::check_transaction_input_no_gas(
+                &self.database,
+                epoch_store.as_ref(),
+                &transaction,
+                gas_object,
+            )
+            .await?
+        } else {
+            transaction_input_checker::check_transaction_input(
+                &self.database,
+                epoch_store.as_ref(),
+                &transaction,
+            )
+            .await?
+        };
+
         let shared_object_refs = input_objects.filter_shared_objects();
 
         let transaction_dependencies = input_objects.transaction_dependencies();
