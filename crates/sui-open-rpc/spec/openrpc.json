@@ -7430,6 +7430,7 @@
           "next_epoch_commission_rate",
           "next_epoch_gas_price",
           "next_epoch_stake",
+          "operation_cap_id",
           "staking_pool",
           "voting_power"
         ],
@@ -7461,6 +7462,9 @@
             "type": "integer",
             "format": "uint64",
             "minimum": 0.0
+          },
+          "operation_cap_id": {
+            "$ref": "#/components/schemas/ObjectID"
           },
           "staking_pool": {
             "$ref": "#/components/schemas/StakingPool"

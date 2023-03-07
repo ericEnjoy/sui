@@ -13,6 +13,7 @@ module sui::sui_system {
     use sui::tx_context::{Self, TxContext};
     use sui::validator::{Self, Validator};
     use sui::validator_set::{Self, ValidatorSet};
+    use sui::validator_cap::{Self, UnverifiedValidatorOperationCap, VerifiedValidatorOperationCap};
     use sui::stake_subsidy::{Self, StakeSubsidy};
     use sui::vec_map::{Self, VecMap};
     use sui::vec_set::{Self, VecSet};
@@ -245,15 +246,17 @@ module sui::sui_system {
     /// used for the reference gas price calculation at the end of the epoch.
     public entry fun request_set_gas_price(
         wrapper: &mut SuiSystemState,
+        cap: &UnverifiedValidatorOperationCap,
         new_gas_price: u64,
-        ctx: &mut TxContext,
+        _ctx: &mut TxContext,
     ) {
         let self = load_system_state_mut(wrapper);
-        validator_set::request_set_gas_price(
-            &mut self.validators,
-            new_gas_price,
-            ctx
-        )
+
+        // Verify the represented address is an active validator, and the capability is still valid.
+        let verified_cap = validator_set::verify_cap(&self.validators, cap);
+        let validator = validator_set::get_active_validator_mut_with_verified_cap(&mut self.validators, &verified_cap);
+
+        validator::request_set_gas_price(validator, verified_cap, new_gas_price);
     }
 
     /// A validator can call this entry function to set a new commission rate, updated at the end of the epoch.
@@ -345,50 +348,87 @@ module sui::sui_system {
     }
 
     /// Report a validator as a bad or non-performant actor in the system.
-    /// Succeeds iff both the sender and the input `validator_addr` are active validators
-    /// and they are not the same address. This function is idempotent.
+    /// Succeeds if all the following are satisfied:
+    /// 1. both the reporter in `cap` and the input `reportee_addr` are active validators.
+    /// 2. reporter and reportee not the same address. 
+    /// 3. the cap object is still valid.
+    /// This function is idempotent.
     public entry fun report_validator(
         wrapper: &mut SuiSystemState,
-        validator_addr: address,
-        ctx: &TxContext,
+        cap: &UnverifiedValidatorOperationCap,
+        reportee_addr: address,
+        _ctx: &TxContext,
     ) {
         let self = load_system_state_mut(wrapper);
-        let sender = tx_context::sender(ctx);
-        // Both the reporter and the reported have to be validators.
-        assert!(validator_set::is_active_validator_by_sui_address(&self.validators, sender), ENotValidator);
-        assert!(validator_set::is_active_validator_by_sui_address(&self.validators, validator_addr), ENotValidator);
-        assert!(sender != validator_addr, ECannotReportOneself);
+        // Reportee needs to be an active validator
+        assert!(validator_set::is_active_validator_by_sui_address(&self.validators, reportee_addr), ENotValidator);
+        // Verify the represented reporter address is an active validator, and the capability is still valid.
+        let verified_cap = validator_set::verify_cap(&self.validators, cap);
+        report_validator_impl(verified_cap, reportee_addr, &mut self.validator_report_records);
+    }
 
-        if (!vec_map::contains(&self.validator_report_records, &validator_addr)) {
-            vec_map::insert(&mut self.validator_report_records, validator_addr, vec_set::singleton(sender));
+
+    /// Undo a `report_validator` action. Aborts if
+    /// 1. the sender has not previously reported the `reportee_addr`, or
+    /// 2. the cap is not valid
+    public entry fun undo_report_validator(
+        wrapper: &mut SuiSystemState,
+        cap: &UnverifiedValidatorOperationCap,
+        reportee_addr: address,
+        _ctx: &TxContext,
+    ) {
+        let self = load_system_state_mut(wrapper);
+
+        let verified_cap = validator_set::verify_cap(&self.validators, cap);
+        undo_report_validator_impl(verified_cap, reportee_addr, &mut self.validator_report_records);
+    }
+
+    fun report_validator_impl(
+        verified_cap: VerifiedValidatorOperationCap,
+        reportee_addr: address,
+        validator_report_records: &mut VecMap<address, VecSet<address>>,
+    ) {
+        let reporter_address = validator_cap::deconstruct_verified_cap(verified_cap);
+        assert!(reporter_address != reportee_addr, ECannotReportOneself);
+        if (!vec_map::contains(validator_report_records, &reportee_addr)) {
+            vec_map::insert(validator_report_records, reportee_addr, vec_set::singleton(reporter_address));
         } else {
-            let reporters = vec_map::get_mut(&mut self.validator_report_records, &validator_addr);
-            if (!vec_set::contains(reporters, &sender)) {
-                vec_set::insert(reporters, sender);
+            let reporters = vec_map::get_mut(validator_report_records, &reportee_addr);
+            if (!vec_set::contains(reporters, &reporter_address)) {
+                vec_set::insert(reporters, reporter_address);
             }
         }
     }
 
-    /// Undo a `report_validator` action. Aborts if the sender has not previously reported the
-    /// `validator_addr`.
-    public entry fun undo_report_validator(
-        wrapper: &mut SuiSystemState,
-        validator_addr: address,
-        ctx: &TxContext,
+    fun undo_report_validator_impl(
+        verified_cap: VerifiedValidatorOperationCap,
+        reportee_addr: address,
+        validator_report_records: &mut VecMap<address, VecSet<address>>,
     ) {
-        let self = load_system_state_mut(wrapper);
-        let sender = tx_context::sender(ctx);
+        assert!(vec_map::contains(validator_report_records, &reportee_addr), EReportRecordNotFound);
+        let reporters = vec_map::get_mut(validator_report_records, &reportee_addr);
 
-        assert!(vec_map::contains(&self.validator_report_records, &validator_addr), EReportRecordNotFound);
-        let reporters = vec_map::get_mut(&mut self.validator_report_records, &validator_addr);
-        assert!(vec_set::contains(reporters, &sender), EReportRecordNotFound);
-        vec_set::remove(reporters, &sender);
+        let reporter_addr = validator_cap::deconstruct_verified_cap(verified_cap);
+        assert!(vec_set::contains(reporters, &reporter_addr), EReportRecordNotFound);
+
+        vec_set::remove(reporters, &reporter_addr);
         if (vec_set::is_empty(reporters)) {
-            vec_map::remove(&mut self.validator_report_records, &validator_addr);
+            vec_map::remove(validator_report_records, &reportee_addr);
         }
     }
 
     // ==== validator metadata management functions ====
+
+    /// Create a new `UnverifiedValidatorOperationCap`, transfer it to the
+    /// validator and registers it. The original object is thus revoked.
+    public entry fun create_new_operation_cap(
+        self: &mut SuiSystemState,
+        ctx: &mut TxContext,
+    ) {
+        let self = load_system_state_mut(self);
+        let validator = validator_set::get_active_or_pending_validator_mut(&mut self.validators, ctx);
+        validator::new_unverified_validator_operation_cap_and_transfer(validator, ctx);
+    }
 
     /// Update a validator's name.
     public entry fun update_validator_name(

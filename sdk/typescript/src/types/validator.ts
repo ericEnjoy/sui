@@ -162,6 +162,7 @@ export const SystemParameters = object({
 export const Validator = object({
   metadata: ValidatorMetaData,
   voting_power: number(),
+  operation_cap_id: string(),
   gas_price: number(),
   staking_pool: DelegationStakingPoolFields,
   commission_rate: number(),

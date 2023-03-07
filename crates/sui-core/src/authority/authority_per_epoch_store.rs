@@ -1,38 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use futures::future::{join_all, select, Either};
-use futures::FutureExt;
-use narwhal_executor::ExecutionIndices;
-use narwhal_types::Round;
-use parking_lot::RwLock;
-use parking_lot::{Mutex, RwLockReadGuard};
-use rocksdb::Options;
-use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
-use std::future::Future;
-use std::iter;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use sui_storage::default_db_options;
-use sui_storage::mutex_table::LockGuard;
-use sui_storage::write_ahead_log::{DBWriteAheadLog, TxGuard, WriteAheadLog};
-use sui_types::accumulator::Accumulator;
-use sui_types::base_types::{AuthorityName, EpochId, ObjectID, SequenceNumber, TransactionDigest};
-use sui_types::committee::Committee;
-use sui_types::crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo};
-use sui_types::error::{SuiError, SuiResult};
-use sui_types::messages::{
-    AuthorityCapabilities, CertifiedTransaction, ConsensusTransaction, ConsensusTransactionKey,
-    ConsensusTransactionKind, SenderSignedData, SharedInputObject, TransactionData,
-    TransactionDataAPI, TransactionEffects, TransactionEffectsAPI, TrustedExecutableTransaction,
-    VerifiedCertificate, VerifiedExecutableTransaction, VerifiedSignedTransaction,
-};
-use sui_types::signature::GenericSignature;
-use tracing::{debug, info, trace, warn};
-use typed_store::rocks::{DBBatch, DBMap, DBOptions, MetricConf, TypedStoreError};
-use typed_store::traits::{TableSummary, TypedStoreDebug};
-
 use crate::authority::authority_notify_read::NotifyRead;
 use crate::authority::{AuthorityStore, CertTxGuard, ResolverWrapper, MAX_TX_RECOVERY_RETRY};
 use crate::checkpoints::{
@@ -49,25 +17,56 @@ use crate::module_cache_metrics::ResolverMetrics;
 use crate::notify_once::NotifyOnce;
 use crate::stake_aggregator::StakeAggregator;
 use crate::transaction_manager::TransactionManager;
+use futures::future::{join_all, select, Either};
+use futures::FutureExt;
 use move_bytecode_utils::module_cache::SyncModuleCache;
 use move_vm_runtime::move_vm::MoveVM;
 use move_vm_runtime::native_functions::NativeFunctionTable;
 use mysten_metrics::monitored_scope;
+use narwhal_executor::ExecutionIndices;
+use narwhal_types::Round;
+use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLockReadGuard};
 use prometheus::IntCounter;
+use rocksdb::Options;
+use serde::{Deserialize, Serialize};
 use std::cmp::Ordering as CmpOrdering;
+use std::collections::{HashMap, HashSet};
+use std::future::Future;
+use std::iter;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use sui_adapter::adapter;
 use sui_protocol_config::{ProtocolConfig, ProtocolVersion};
+use sui_storage::default_db_options;
+use sui_storage::mutex_table::LockGuard;
+use sui_storage::write_ahead_log::{DBWriteAheadLog, TxGuard, WriteAheadLog};
+use sui_types::accumulator::Accumulator;
+use sui_types::base_types::{AuthorityName, EpochId, ObjectID, SequenceNumber, TransactionDigest};
+use sui_types::committee::Committee;
+use sui_types::crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo};
 use sui_types::epoch_data::EpochData;
+use sui_types::error::{SuiError, SuiResult};
 use sui_types::message_envelope::TrustedEnvelope;
+use sui_types::messages::{
+    AuthorityCapabilities, CertifiedTransaction, ConsensusTransaction, ConsensusTransactionKey,
+    ConsensusTransactionKind, SenderSignedData, SharedInputObject, TransactionData,
+    TransactionDataAPI, TransactionEffects, TransactionEffectsAPI, TrustedExecutableTransaction,
+    VerifiedCertificate, VerifiedExecutableTransaction, VerifiedSignedTransaction,
+};
 use sui_types::messages_checkpoint::{
     CertifiedCheckpointSummary, CheckpointContents, CheckpointDigest, CheckpointSequenceNumber,
     CheckpointSignatureMessage, CheckpointSummary, CheckpointTimestamp,
 };
+use sui_types::signature::GenericSignature;
 use sui_types::storage::{transaction_input_object_keys, ObjectKey, ParentSync};
 use sui_types::sui_system_state::epoch_start_sui_system_state::EpochStartSystemState;
 use sui_types::temporary_store::InnerTemporaryStore;
 use sui_types::{MOVE_STDLIB_ADDRESS, SUI_FRAMEWORK_ADDRESS};
 use tokio::time::Instant;
+use tracing::{debug, info, trace, warn};
+use typed_store::rocks::{DBBatch, DBMap, DBOptions, MetricConf, TypedStoreError};
+use typed_store::traits::{TableSummary, TypedStoreDebug};
 use typed_store::{retry_transaction_forever, Map};
 use typed_store_derive::DBMapUtils;
 
