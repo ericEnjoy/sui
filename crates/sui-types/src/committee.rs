@@ -8,6 +8,7 @@ use crate::error::{SuiError, SuiResult};
 use crate::messages::CommitteeInfo;
 use fastcrypto::traits::KeyPair;
 use itertools::Itertools;
+use parking_lot::RwLock;
 use rand::rngs::ThreadRng;
 use rand::seq::SliceRandom;
 use rand::Rng;
@@ -17,6 +18,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt::Write;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 pub use sui_protocol_config::ProtocolVersion;
 
 pub type EpochId = u64;
@@ -28,18 +30,20 @@ pub type StakeUnit = u64;
 
 pub type CommitteeDigest = [u8; 32];
 
-#[derive(Clone, Debug, Serialize, Deserialize, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Committee {
     pub epoch: EpochId,
     pub voting_rights: Vec<(AuthorityName, StakeUnit)>,
     pub total_votes: StakeUnit,
     #[serde(skip)]
-    expanded_keys: HashMap<AuthorityName, AuthorityPublicKey>,
+    expanded_keys: Arc<RwLock<HashMap<AuthorityName, AuthorityPublicKey>>>,
     #[serde(skip)]
     index_map: HashMap<AuthorityName, usize>,
     #[serde(skip)]
     loaded: bool,
 }
+
+impl Eq for Committee {}
 
 impl Committee {
     pub fn new(
@@ -77,7 +81,7 @@ impl Committee {
             epoch,
             voting_rights,
             total_votes,
-            expanded_keys,
+            expanded_keys: Arc::new(RwLock::new(expanded_keys)),
             index_map,
             loaded: true,
         })
@@ -107,7 +111,7 @@ impl Committee {
 
     pub fn reload_fields(&mut self) {
         let (expanded_keys, index_map) = Committee::load_inner(&self.voting_rights);
-        self.expanded_keys = expanded_keys;
+        self.expanded_keys = Arc::new(RwLock::new(expanded_keys));
         self.index_map = index_map;
         self.loaded = true;
     }
@@ -132,12 +136,18 @@ impl Committee {
     }
 
     pub fn public_key(&self, authority: &AuthorityName) -> SuiResult<AuthorityPublicKey> {
-        match self.expanded_keys.get(authority) {
+        match self.expanded_keys.read().get(authority) {
             // TODO: Check if this is unnecessary copying.
             Some(v) => Ok(v.clone()),
-            None => (*authority).try_into().map_err(|_| {
-                SuiError::InvalidCommittee(format!("Authority #{} not found", authority))
-            }),
+            None => {
+                let expanded: AuthorityPublicKey = (*authority).try_into().map_err(|_| {
+                    SuiError::InvalidCommittee(format!("Authority #{} not found", authority))
+                })?;
+                self.expanded_keys
+                    .write()
+                    .insert(*authority, expanded.clone());
+                Ok(expanded)
+            }
         }
     }
 
