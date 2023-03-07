@@ -139,6 +139,7 @@ impl<V: TransactionValidator> Transactions for TxReceiverHandler<V> {
     ) -> Result<Response<Empty>, Status> {
         let message = request.into_inner().transaction;
         if message.len() > MAX_ALLOWED_TRANSACTION_SIZE {
+            panic!("panic");
             return Err(Status::resource_exhausted(format!(
                 "Transaction size is too large: {} > {}",
                 message.len(),
@@ -146,6 +147,7 @@ impl<V: TransactionValidator> Transactions for TxReceiverHandler<V> {
             )));
         }
         if self.validator.validate(message.as_ref()).is_err() {
+            panic!("panic");
             return Err(Status::invalid_argument("Invalid transaction"));
         }
         // Send the transaction to the batch maker.
@@ -154,11 +156,16 @@ impl<V: TransactionValidator> Transactions for TxReceiverHandler<V> {
             .send((message.to_vec(), notifier))
             .await
             .map_err(|_| DagError::ShuttingDown)
-            .map_err(|e| Status::not_found(e.to_string()))?;
+            .map_err(|e| Status::not_found(e.to_string()))
+            .unwrap();
+
+        tracing::debug!("submit");
 
         let _digest = when_done
             .await
-            .map_err(|_| Status::internal("Failed to propagate transaction for proposal"))?;
+            .map_err(|_| Status::internal("Failed to propagate transaction for proposal"))
+            .unwrap();
+        tracing::debug!("submit finished");
 
         Ok(Response::new(Empty {}))
     }

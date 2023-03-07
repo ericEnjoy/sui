@@ -85,6 +85,7 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
         summary.verify_signature(epoch_store.committee()).unwrap();
 
         let message = CheckpointSignatureMessage { summary };
+        debug!(?message, "checkpoint created");
         let transaction = ConsensusTransaction::new_checkpoint_signature_message(message);
         self.sender
             .submit_to_consensus(&transaction, epoch_store)

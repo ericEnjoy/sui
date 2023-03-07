@@ -2,7 +2,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 use crate::metrics::WorkerMetrics;
-#[cfg(feature = "trace_transaction")]
 use byteorder::{BigEndian, ReadBytesExt};
 use fastcrypto::hash::Hash;
 use futures::stream::FuturesUnordered;
@@ -113,6 +112,7 @@ impl BatchMaker {
                 // 'in-flight' are below a certain number (MAX_PARALLEL_BATCH). This
                 // condition will be met eventually if the store and network are functioning.
                 Some((transaction, response_sender)) = self.rx_batch_maker.recv(), if batch_pipeline.len() < MAX_PARALLEL_BATCH => {
+                    tracing::debug!(?transaction, "batchmaker recv");
                     current_batch_size += transaction.len();
                     current_batch.transactions.push(transaction);
                     current_responses.push(response_sender);
@@ -133,6 +133,7 @@ impl BatchMaker {
 
                 // If the timer triggers, seal the batch even if it contains few transactions.
                 () = &mut timer => {
+                    tracing::debug!("batch timer");
                     if !current_batch.transactions.is_empty() {
                         if let Some(seal) = self.seal(true, current_batch, current_batch_size, current_responses).await {
                             batch_pipeline.push(seal);
@@ -173,7 +174,6 @@ impl BatchMaker {
         size: usize,
         responses: Vec<TxResponse>,
     ) -> Option<impl Future<Output = ()>> {
-        #[cfg(feature = "benchmark")]
         {
             let digest = batch.digest();
 
@@ -194,7 +194,6 @@ impl BatchMaker {
                 );
             }
 
-            #[cfg(feature = "trace_transaction")]
             {
                 // The first 8 bytes of each transaction message is reserved for an identifier
                 // that's useful for debugging and tracking the lifetime of messages between
