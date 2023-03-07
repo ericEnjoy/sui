@@ -44,7 +44,6 @@ use sui_network::{state_sync, DEFAULT_CONNECT_TIMEOUT_SEC, DEFAULT_HTTP2_KEEPALI
 use sui_types::committee::CommitteeWithNetworkMetadata;
 use sui_types::sui_system_state::SuiSystemStateTrait;
 use tokio::sync::broadcast::Receiver;
-use tracing::debug;
 
 use sui_protocol_config::{ProtocolConfig, ProtocolVersion, SupportedProtocolVersions};
 
@@ -59,7 +58,7 @@ use tokio::sync::broadcast;
 use tokio::sync::{watch, Mutex};
 use tokio::task::JoinHandle;
 use tower::ServiceBuilder;
-use tracing::{error_span, info, Instrument};
+use tracing::{debug, error_span, info, warn, Instrument};
 use typed_store::DBMetrics;
 pub mod admin;
 mod handle;
@@ -196,6 +195,20 @@ impl SuiNode {
             store.clone(),
             cache_metrics,
         );
+
+        if let Some(override_buffer_stake) =
+            epoch_store.get_override_protocol_upgrade_buffer_stake()
+        {
+            let default_buffer_stake = epoch_store
+                .protocol_config()
+                .buffer_stake_for_protocol_upgrade_bps();
+
+            warn!(
+                ?override_buffer_stake,
+                ?default_buffer_stake,
+                "buffer_stake_for_protocol_upgrade_bps is currently overridden"
+            );
+        }
 
         let checkpoint_store = CheckpointStore::new(&config.db_path().join("checkpoints"));
         checkpoint_store.insert_genesis_checkpoint(
