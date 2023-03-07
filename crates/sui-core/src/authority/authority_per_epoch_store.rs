@@ -1880,6 +1880,7 @@ impl AuthorityPerEpochStore {
         index: u64,
         info: &CheckpointSignatureMessage,
     ) -> Result<(), TypedStoreError> {
+        debug!(?index, ?checkpoint_seq, ?info, "DBG");
         self.tables
             .pending_checkpoint_signatures
             .insert(&(checkpoint_seq, index), info)

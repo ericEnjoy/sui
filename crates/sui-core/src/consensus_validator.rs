@@ -97,11 +97,14 @@ impl TransactionValidator for SuiTxValidator {
                         summary.epoch,
                         Intent::default().with_scope(IntentScope::CheckpointSummary),
                     );
-                    summary.auth_sig().add_to_verification_obligation(
-                        self.epoch_store.committee(),
-                        &mut obligation,
-                        idx,
-                    )?;
+                    summary
+                        .auth_sig()
+                        .add_to_verification_obligation(
+                            self.epoch_store.committee(),
+                            &mut obligation,
+                            idx,
+                        )
+                        .unwrap();
                 }
                 ConsensusTransactionKind::EndOfPublish(_)
                 | ConsensusTransactionKind::CapabilityNotification(_) => {}

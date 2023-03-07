@@ -471,7 +471,8 @@ pub struct CheckpointContents {
 
 impl CheckpointSignatureMessage {
     pub fn verify(&self, committee: &Committee) -> SuiResult {
-        self.summary.verify_signature(committee)
+        self.summary.verify_signature(committee).unwrap();
+        Ok(())
     }
 }
 

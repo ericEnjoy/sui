@@ -532,8 +532,8 @@ impl CheckpointBuilder {
         let mut batch = self.tables.checkpoint_content.batch();
         for (summary, contents) in &new_checkpoint {
             debug!(
-                "Created checkpoint from commit height {height} with sequence {}",
-                summary.sequence_number
+                "Created checkpoint from commit height {height} with sequence {} {:?}",
+                summary.sequence_number, summary
             );
             self.output
                 .checkpoint_created(summary, contents, &self.epoch_store)
@@ -1039,6 +1039,7 @@ impl CheckpointSignatureAggregator {
         &mut self,
         data: CheckpointSignatureMessage,
     ) -> Result<AuthorityStrongQuorumSignInfo, ()> {
+        debug!(?data, "DBG try_aggregate");
         let their_digest = *data.summary.digest();
         let (_, signature) = data.summary.into_data_and_sig();
         let author = signature.authority;
@@ -1161,6 +1162,7 @@ impl CheckpointServiceNotify for CheckpointService {
         epoch_store: &AuthorityPerEpochStore,
         info: &CheckpointSignatureMessage,
     ) -> SuiResult {
+        debug!(?info, "DBG");
         let sequence = info.summary.sequence_number;
         let signer = info.summary.auth_sig().authority.concise();
         if let Some((last_certified, _)) = self
