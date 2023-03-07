@@ -31,7 +31,12 @@ export const Default: StoryObj<NetworkSelectProps> = {
         const [network, setNetwork] = useState(NETWORKS[0].id);
 
         return (
-            <NetworkSelect {...args} value={network} onChange={setNetwork} />
+            <NetworkSelect
+                {...args}
+                value={network}
+                version="0.27.0"
+                onChange={setNetwork}
+            />
         );
     },
     args: {
