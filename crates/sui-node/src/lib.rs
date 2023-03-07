@@ -898,7 +898,11 @@ impl SuiNode {
                 narwhal_manager.shutdown().await;
 
                 let new_epoch_store = self
-                    .reconfigure_state(&cur_epoch_store, next_epoch_committee.clone(), system_state)
+                    .reconfigure_state(
+                        &cur_epoch_store,
+                        next_epoch_committee.committee.clone(),
+                        system_state,
+                    )
                     .await;
 
                 narwhal_epoch_data_remover
@@ -918,7 +922,7 @@ impl SuiNode {
                             narwhal_manager,
                             narwhal_epoch_data_remover,
                             validator_server_handle,
-                            next_epoch_committee,
+                            next_epoch_committee.committee,
                             self.accumulator.clone(),
                             checkpoint_metrics,
                             sui_tx_validator_metrics,
@@ -931,7 +935,11 @@ impl SuiNode {
                 }
             } else {
                 let new_epoch_store = self
-                    .reconfigure_state(&cur_epoch_store, next_epoch_committee.clone(), system_state)
+                    .reconfigure_state(
+                        &cur_epoch_store,
+                        next_epoch_committee.committee.clone(),
+                        system_state,
+                    )
                     .await;
 
                 if self.state.is_validator(&new_epoch_store) {
@@ -941,7 +949,7 @@ impl SuiNode {
                         Self::construct_validator_components(
                             &self.config,
                             self.state.clone(),
-                            next_epoch_committee,
+                            next_epoch_committee.committee,
                             new_epoch_store.clone(),
                             self.checkpoint_store.clone(),
                             self.state_sync.clone(),
