@@ -254,7 +254,7 @@ pub struct AuthorityEpochTables {
 
     /// When we see certificate through consensus for the first time, we record
     /// user signature for this transaction here. This will be included in the checkpoint later.
-    user_signatures_for_checkpoints: DBMap<TransactionDigest, Vec<GenericSignature>>,
+    user_signatures_for_checkpoints: DBMap<TransactionDigest, Vec<Vec<u8>>>,
 
     /// Maps sequence number to checkpoint summary, used by CheckpointBuilder to build checkpoint within epoch
     builder_checkpoint_summary: DBMap<CheckpointSequenceNumber, CheckpointSummary>,
@@ -1015,7 +1015,7 @@ impl AuthorityPerEpochStore {
     pub fn user_signatures_for_checkpoint(
         &self,
         digests: &[TransactionDigest],
-    ) -> SuiResult<Vec<Vec<GenericSignature>>> {
+    ) -> SuiResult<Vec<Vec<Vec<u8>>>> {
         let signatures = self
             .tables
             .user_signatures_for_checkpoints
@@ -1338,6 +1338,10 @@ impl AuthorityPerEpochStore {
         digest: TransactionDigest,
         signatures: Vec<GenericSignature>,
     ) {
+        let signatures: Vec<_> = signatures
+            .iter()
+            .map(|sig| bcs::to_bytes(sig).unwrap())
+            .collect();
         self.tables
             .user_signatures_for_checkpoints
             .insert(&digest, &signatures)
@@ -1373,9 +1377,14 @@ impl AuthorityPerEpochStore {
             .tables
             .user_signatures_for_checkpoints
             .contains_key(certificate.digest())?);
+        let signatures: Vec<_> = certificate
+            .tx_signatures
+            .iter()
+            .map(|sig| bcs::to_bytes(sig).unwrap())
+            .collect();
         let batch = batch.insert_batch(
             &self.tables.user_signatures_for_checkpoints,
-            [(*certificate.digest(), certificate.tx_signatures.clone())],
+            [(*certificate.digest(), signatures)],
         )?;
         self.finish_consensus_transaction_process_with_batch(batch, key, consensus_index)
     }

@@ -12,7 +12,6 @@ use crate::crypto::{AuthoritySignInfo, AuthoritySignInfoTrait, AuthorityStrongQu
 use crate::error::SuiResult;
 use crate::gas::GasCostSummary;
 use crate::intent::{Intent, IntentScope};
-use crate::signature::GenericSignature;
 use crate::{
     base_types::AuthorityName,
     committee::Committee,
@@ -420,7 +419,7 @@ pub struct CheckpointContents {
     /// This field 'pins' user signatures for the checkpoint
     /// The length of this vector is same as length of transactions vector
     /// System transactions has empty signatures
-    user_signatures: Vec<Vec<GenericSignature>>,
+    user_signatures: Vec<Vec<Vec<u8>>>,
 }
 
 impl CheckpointSignatureMessage {
@@ -444,7 +443,7 @@ impl CheckpointContents {
 
     pub fn new_with_causally_ordered_transactions_and_signatures<T>(
         contents: T,
-        user_signatures: Vec<Vec<GenericSignature>>,
+        user_signatures: Vec<Vec<Vec<u8>>>,
     ) -> Self
     where
         T: IntoIterator<Item = ExecutionDigests>,
