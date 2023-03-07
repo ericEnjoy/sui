@@ -5,7 +5,6 @@ import { SentryRpcClient } from '@mysten/core';
 import {
     Connection,
     JsonRpcProvider,
-    LocalTxnDataSerializer,
 } from '@mysten/sui.js';
 
 import { BackgroundServiceSigner } from './background-client/BackgroundServiceSigner';
@@ -130,10 +129,6 @@ export default class ApiProvider {
                     address,
                     backgroundClient,
                     this._apiFullNodeProvider,
-                    growthbook.isOn(FEATURES.USE_LOCAL_TXN_SERIALIZER)
-                        ? // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-                          new LocalTxnDataSerializer(this._apiFullNodeProvider!)
-                        : undefined
                 )
             );
         }
