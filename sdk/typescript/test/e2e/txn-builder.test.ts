@@ -83,8 +83,11 @@ describe('Transaction Builders', () => {
       toolbox.address(),
     );
 
-    const [{ sui_address: validator_address }] =
-      await toolbox.getActiveValidators();
+    const [
+      {
+        metadata: { sui_address: validator_address },
+      },
+    ] = await toolbox.getActiveValidators();
 
     await validateTransaction(signer, {
       kind: 'moveCall',

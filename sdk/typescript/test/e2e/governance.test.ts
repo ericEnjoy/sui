@@ -38,11 +38,6 @@ describe('Governance API', () => {
     // TODO: implement this
   });
 
-  it('test getValidators', async () => {
-    const validators = await toolbox.provider.getValidators();
-    expect(validators.length).greaterThan(0);
-  });
-
   it('test getCommitteeInfo', async () => {
     const committeeInfo = await toolbox.provider.getCommitteeInfo(0);
     expect(committeeInfo.validators?.length).greaterThan(0);
@@ -62,13 +57,14 @@ async function addDelegation(signer: RawSigner) {
     await signer.getAddress(),
   );
 
-  const validators = await signer.provider.getValidators();
+  const system = await signer.provider.getSuiSystemState();
+  const validators = system.validators.active_validators;
 
   const tx = await SuiSystemStateUtil.newRequestAddDelegationTxn(
     signer.provider,
     [coins[0].objectId],
     BigInt(DEFAULT_STAKED_AMOUNT),
-    validators[0].sui_address,
+    validators[0].metadata.sui_address,
   );
 
   tx.setGasBudget(DEFAULT_GAS_BUDGET);
