@@ -168,16 +168,26 @@ impl ProgrammableTransactionBuilder {
         Ok(())
     }
 
-    pub fn publish(&mut self, modules: Vec<Vec<u8>>) {
+    pub fn publish_and_handle_capability_with(
+        &mut self,
+        modules: Vec<Vec<u8>>,
+        cap_handler: impl FnOnce(&mut ProgrammableTransactionBuilder, Argument) -> Command,
+    ) {
         let cap = self.command(Command::Publish(modules));
-        self.commands
-            .push(Command::MoveCall(Box::new(ProgrammableMoveCall {
+        let cap_command = cap_handler(self, cap);
+        self.commands.push(cap_command);
+    }
+
+    pub fn publish(&mut self, modules: Vec<Vec<u8>>) {
+        self.publish_and_handle_capability_with(modules, |_, cap| {
+            Command::MoveCall(Box::new(ProgrammableMoveCall {
                 package: SUI_FRAMEWORK_OBJECT_ID,
                 module: PACKAGE_MODULE_NAME.to_owned(),
                 function: ident_str!("make_immutable").to_owned(),
                 type_arguments: vec![],
                 arguments: vec![cap],
-            })));
+            }))
+        })
     }
 
     pub fn transfer_object(&mut self, recipient: SuiAddress, object_ref: ObjectRef) {

@@ -5,7 +5,7 @@
 
 //# init --addresses t=0x0 --accounts A
 
-//# publish
+//# publish --sender A
 
 module t::m {
     use sui::object::{Self, UID};
