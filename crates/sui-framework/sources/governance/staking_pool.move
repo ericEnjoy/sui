@@ -326,7 +326,7 @@ module sui::staking_pool {
     /// Consume the staked sui `other` and add its value to `self`.
     /// Aborts if some of the staking parameters are incompatible (pool id, delegation activation epoch, etc.)
     public entry fun join_staked_sui(self: &mut StakedSui, other: StakedSui) {
-        assert!(is_equal_staking_metadata(self, &other), EIncompatibleStakedSui);        
+        assert!(is_equal_staking_metadata(self, &other), EIncompatibleStakedSui);
         let StakedSui {
             id,
             pool_id: _,
@@ -335,7 +335,7 @@ module sui::staking_pool {
             principal,
             sui_token_lock
         } = other;
-        
+
         object::delete(id);
         if (option::is_some(&sui_token_lock)) {
             epoch_time_lock::destroy_unchecked(option::destroy_some(sui_token_lock));
@@ -412,6 +412,10 @@ module sui::staking_pool {
     }
 
     // ==== test-related functions ====
+
+    public fun validator_address(staked_sui: &StakedSui): address {
+        staked_sui.validator_address
+    }
 
     // Given the `staked_sui` receipt calculate the current rewards (in terms of SUI) for it.
     #[test_only]
