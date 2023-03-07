@@ -149,6 +149,7 @@ impl SubmitToConsensus for TransactionsClient<sui_network::tonic::transport::Cha
         transaction: &ConsensusTransaction,
         _epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> SuiResult {
+        debug!(key = ?transaction.key(), "submit_to_consensus");
         let serialized =
             bcs::to_bytes(transaction).expect("Serializing consensus transaction cannot fail");
         let bytes = Bytes::from(serialized.clone());
@@ -161,6 +162,7 @@ impl SubmitToConsensus for TransactionsClient<sui_network::tonic::transport::Cha
                 // Will be logged by caller as well.
                 warn!("Submit transaction failed with: {:?}", r);
             })?;
+        debug!(key = ?transaction.key(), "done submit_to_consensus");
         Ok(())
     }
 }
@@ -428,6 +430,7 @@ impl ConsensusAdapter {
             // We enter this branch when in select above await_submit completed and processed_waiter is pending
             // This means it is time for us to submit transaction to consensus
             {
+                debug!("hay1 {transaction_key:?}");
                 let ack_start = Instant::now();
                 let mut retries: u32 = 0;
                 while let Err(e) = self
@@ -436,18 +439,19 @@ impl ConsensusAdapter {
                     .await
                 {
                     // This can happen during Narwhal reconfig, so wait for a few retries.
-                    if retries > 3 {
-                        error!(
-                            "Error submitting transaction to own narwhal worker: {:?}",
-                            e
-                        );
-                    }
+                    //if retries > 3 {
+                    error!(
+                        "Error submitting transaction to own narwhal worker: {:?}",
+                        e
+                    );
+                    //}
                     self.opt_metrics.as_ref().map(|metrics| {
                         metrics.sequencing_certificate_failures.inc();
                     });
                     retries += 1;
                     time::sleep(Duration::from_secs(10)).await;
                 }
+                debug!("hay1 {transaction_key:?}");
 
                 // we want to record the num of retries when reporting latency but to avoid label
                 // cardinality we do some simple bucketing to give us a good enough idea of how
@@ -460,12 +464,14 @@ impl ConsensusAdapter {
                     _ => "over_100".to_string(),
                 };
 
+                debug!("hay1 {transaction_key:?}");
                 self.opt_metrics.as_ref().map(|metrics| {
                     metrics
                         .sequencing_acknowledge_latency
                         .with_label_values(&[&bucket])
                         .observe(ack_start.elapsed().as_secs_f64());
                 });
+                debug!("hay1 {transaction_key:?}");
             }
             debug!("Submitted {transaction_key:?} to consensus");
             processed_waiter
