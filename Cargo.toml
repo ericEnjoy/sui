@@ -129,7 +129,6 @@ move-symbol-pool = { git = "https://github.com/move-language/move", rev = "8729c
 
 fastcrypto = { git = "https://github.com/MystenLabs/fastcrypto", rev = "9cae043d0821662c075fd054c5c5523dcb20b5fb" }
 fastcrypto-zkp = { git = "https://github.com/MystenLabs/fastcrypto", rev = "9cae043d0821662c075fd054c5c5523dcb20b5fb", package = "fastcrypto-zkp" }
-fastcrypto-tbls = { git = "https://github.com/MystenLabs/fastcrypto", rev = "9cae043d0821662c075fd054c5c5523dcb20b5fb", package = "fastcrypto-tbls" }
 
 # anemo dependencies
 anemo = { git = "https://github.com/mystenlabs/anemo.git", rev = "d4017b6cefad7ebc5e84b5c6b8eeff4668f719ff" }

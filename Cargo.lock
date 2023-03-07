@@ -2659,22 +2659,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fastcrypto-tbls"
-version = "0.1.0"
-source = "git+https://github.com/MystenLabs/fastcrypto?rev=9cae043d0821662c075fd054c5c5523dcb20b5fb#9cae043d0821662c075fd054c5c5523dcb20b5fb"
-dependencies = [
- "bincode",
- "digest 0.10.6",
- "fastcrypto",
- "fastcrypto-derive",
- "rand 0.8.5",
- "serde 1.0.152",
- "sha3 0.10.6",
- "typenum",
- "zeroize",
-]
-
-[[package]]
 name = "fastcrypto-zkp"
 version = "0.1.0"
 source = "git+https://github.com/MystenLabs/fastcrypto?rev=9cae043d0821662c075fd054c5c5523dcb20b5fb#9cae043d0821662c075fd054c5c5523dcb20b5fb"
@@ -8679,7 +8663,6 @@ dependencies = [
  "curve25519-dalek-ng",
  "digest 0.10.6",
  "fastcrypto",
- "fastcrypto-tbls",
  "fastcrypto-zkp",
  "linked-hash-map",
  "move-binary-format",
@@ -8802,7 +8785,6 @@ dependencies = [
  "async-trait",
  "bcs",
  "fastcrypto",
- "fastcrypto-tbls",
  "futures",
  "hyper",
  "jsonrpsee",
@@ -8854,7 +8836,6 @@ dependencies = [
  "either",
  "enum_dispatch",
  "fastcrypto",
- "fastcrypto-tbls",
  "itertools",
  "move-binary-format",
  "move-bytecode-utils",
@@ -11197,7 +11178,6 @@ dependencies = [
  "fail 0.5.1",
  "fastcrypto",
  "fastcrypto-derive",
- "fastcrypto-tbls",
  "fastcrypto-zkp",
  "fastrand",
  "fd-lock",
