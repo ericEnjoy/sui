@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::base_types::{AuthorityName, SuiAddress};
+use crate::collection_types::Table;
 use crate::committee::{CommitteeWithNetworkMetadata, EpochId, ProtocolVersion};
 use crate::dynamic_field::{derive_dynamic_field_id, Field};
 use crate::error::SuiError;
 use crate::storage::ObjectStore;
+use crate::sui_system_state::sui_system_state_inner_v1::Validator;
 use crate::{id::UID, SUI_FRAMEWORK_ADDRESS, SUI_SYSTEM_STATE_OBJECT_ID};
 use anemo::PeerId;
 use anyhow::Result;
@@ -78,6 +80,9 @@ pub trait SuiSystemStateTrait {
     fn get_current_epoch_authority_names_to_peer_ids(&self) -> HashMap<AuthorityName, PeerId>;
     fn get_staking_pool_info(&self) -> BTreeMap<SuiAddress, (Vec<u8>, u64)>;
     fn into_sui_system_state_summary(self) -> SuiSystemStateSummary;
+    fn staking_pool_mappings(&self) -> &Table;
+    fn active_validators(&self) -> &Vec<Validator>;
+    fn inactive_pools(&self) -> &Table;
 }
 
 /// SuiSystemState provides an abstraction over multiple versions of the inner SuiSystemStateInner object.

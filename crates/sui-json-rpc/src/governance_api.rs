@@ -5,7 +5,9 @@ use jsonrpsee::core::RpcResult;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use sui_json_rpc_types::{SuiCommittee, SuiSystemStateRpc};
-use sui_types::sui_system_state::sui_system_state_inner_v1::ValidatorMetadata;
+use sui_types::sui_system_state::sui_system_state_inner_v1::{
+    PoolTokenExchangeRate, StakingPool, Validator, ValidatorMetadata,
+};
 use sui_types::sui_system_state::sui_system_state_summary::SuiSystemStateSummary;
 
 use crate::api::GovernanceReadApiServer;
@@ -19,13 +21,7 @@ use sui_open_rpc::Module;
 use sui_types::base_types::{ObjectID, SuiAddress};
 use sui_types::committee::EpochId;
 use sui_types::governance::StakedSui;
-use sui_types::messages::{CommitteeInfoRequest, CommitteeInfoResponse};
-use sui_types::sui_system_state::{
-    PoolTokenExchangeRate, StakingPool, SuiSystemState, SuiSystemStateTrait, Validator,
-    ValidatorMetadata,
-};
-use sui_types::governance::{DelegatedStake, Delegation, DelegationStatus, StakedSui};
-use sui_types::sui_system_state::SuiSystemStateTrait;
+use sui_types::sui_system_state::{SuiSystemState, SuiSystemStateTrait};
 
 pub struct GovernanceReadApi {
     state: Arc<AuthorityState>,

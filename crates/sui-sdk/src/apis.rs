@@ -16,7 +16,8 @@ use sui_json_rpc_types::{
     Balance, Checkpoint, CheckpointId, Coin, CoinPage, DelegatedStake, DryRunTransactionResponse,
     DynamicFieldPage, EventPage, SuiCoinMetadata, SuiCommittee, SuiEventEnvelope, SuiEventFilter,
     SuiMoveNormalizedModule, SuiObjectDataOptions, SuiObjectInfo, SuiObjectResponse,
-    SuiPastObjectResponse, SuiSystemStateRpc, SuiTransactionEffectsAPI, SuiTransactionResponse, TransactionsPage,
+    SuiPastObjectResponse, SuiSystemStateRpc, SuiTransactionEffectsAPI, SuiTransactionResponse,
+    TransactionsPage,
 };
 use sui_types::balance::Supply;
 use sui_types::base_types::{

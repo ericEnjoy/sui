@@ -4,7 +4,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use sui_types::base_types::{AuthorityName, EpochId};
+use sui_types::base_types::{AuthorityName, EpochId, ObjectID, SuiAddress};
 use sui_types::committee::{Committee, StakeUnit};
 use sui_types::sui_system_state::sui_system_state_inner_v1::SuiSystemStateInnerV1;
 use sui_types::sui_system_state::SuiSystemState;
@@ -46,4 +46,34 @@ impl From<Committee> for SuiCommittee {
             validators: committee.voting_rights,
         }
     }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DelegatedStake {
+    pub validator_address: SuiAddress,
+    pub staking_pool: ObjectID,
+    pub delegations: Vec<Delegation>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
+#[serde(tag = "status")]
+pub enum DelegationStatus {
+    Pending,
+    #[serde(rename_all = "camelCase")]
+    Active {
+        estimated_reward: u64,
+    },
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Delegation {
+    /// ID of the stake receipt object
+    pub staked_sui_id: ObjectID,
+    pub delegation_request_epoch: EpochId,
+    pub principal: u64,
+    pub token_lock: Option<EpochId>,
+    #[serde(flatten)]
+    pub status: DelegationStatus,
 }
