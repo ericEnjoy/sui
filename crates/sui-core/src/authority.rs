@@ -24,6 +24,8 @@ use prometheus::{
     IntCounterVec, IntGauge, Registry,
 };
 use serde::de::DeserializeOwned;
+use shared_crypto::intent::Intent;
+use shared_crypto::intent::IntentScope;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -32,8 +34,6 @@ use std::{collections::HashMap, pin::Pin};
 use sui_config::node::{AuthorityStorePruningConfig, StateSnapshotConfig};
 use sui_types::crypto::AuthoritySignInfo;
 use sui_types::error::UserInputError;
-use sui_types::intent::Intent;
-use sui_types::intent::IntentScope;
 use sui_types::message_envelope::Message;
 use sui_types::parse_sui_struct_tag;
 use sui_types::sui_system_state::SuiSystemStateTrait;

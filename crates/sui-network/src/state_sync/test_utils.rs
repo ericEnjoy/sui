@@ -1,10 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use std::collections::HashMap;
 use sui_types::crypto::AuthorityStrongQuorumSignInfo;
-use sui_types::intent::{Intent, IntentMessage, IntentScope};
-use sui_types::messages_checkpoint::{FullCheckpointContents, VerifiedCheckpointContents};
 use sui_types::{
     base_types::AuthorityName,
     committee::{Committee, EpochId, StakeUnit},
@@ -14,10 +13,9 @@ use sui_types::{
     },
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointDigest, CheckpointSequenceNumber, CheckpointSummary,
-        EndOfEpochData, VerifiedCheckpoint,
+        EndOfEpochData, FullCheckpointContents, VerifiedCheckpoint, VerifiedCheckpointContents,
     },
 };
-
 pub struct CommitteeFixture {
     epoch: EpochId,
     validators: HashMap<AuthorityName, (AuthorityKeyPair, StakeUnit)>,

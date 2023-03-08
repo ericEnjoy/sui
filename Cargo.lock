@@ -5256,6 +5256,7 @@ name = "narwhal-crypto"
 version = "0.1.0"
 dependencies = [
  "ark-bls12-377",
+ "bcs",
  "bincode",
  "criterion",
  "eyre",
@@ -5272,6 +5273,7 @@ dependencies = [
  "serde_bytes",
  "serde_json",
  "serde_with",
+ "shared-crypto",
  "tokio",
  "workspace-hack",
  "zeroize",
@@ -5553,6 +5555,7 @@ dependencies = [
  "prometheus",
  "rand 0.8.5",
  "serde 1.0.152",
+ "shared-crypto",
  "telemetry-subscribers",
  "tempfile",
  "thiserror",
@@ -7876,6 +7879,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "shared-crypto"
+version = "0.0.0"
+dependencies = [
+ "bcs",
+ "eyre",
+ "fastcrypto",
+ "serde 1.0.152",
+ "serde_repr",
+ "workspace-hack",
+]
+
+[[package]]
 name = "shell-words"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8323,6 +8338,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "serde_yaml",
+ "shared-crypto",
  "shell-words",
  "signature 1.6.4",
  "sui-config",
@@ -8458,6 +8474,7 @@ dependencies = [
  "reqwest",
  "serde 1.0.152",
  "serde_json",
+ "shared-crypto",
  "sui",
  "sui-config",
  "sui-core",
@@ -8502,6 +8519,7 @@ dependencies = [
  "serde 1.0.152",
  "serde_with",
  "serde_yaml",
+ "shared-crypto",
  "sui-adapter",
  "sui-framework",
  "sui-keys",
@@ -8563,6 +8581,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "serde_yaml",
+ "shared-crypto",
  "signature 1.6.4",
  "strum_macros",
  "sui-adapter",
@@ -8647,6 +8666,7 @@ dependencies = [
  "rocksdb",
  "scopeguard",
  "serde 1.0.152",
+ "shared-crypto",
  "sui",
  "sui-config",
  "sui-json-rpc-types",
@@ -8818,6 +8838,7 @@ dependencies = [
  "reqwest",
  "scopeguard",
  "serde 1.0.152",
+ "shared-crypto",
  "signature 1.6.4",
  "sui-adapter",
  "sui-config",
@@ -8882,6 +8903,7 @@ dependencies = [
  "rand 0.8.5",
  "serde 1.0.152",
  "serde_json",
+ "shared-crypto",
  "signature 1.6.4",
  "slip10_ed25519",
  "sui-types",
@@ -8967,6 +8989,7 @@ dependencies = [
  "prometheus",
  "rand 0.8.5",
  "serde 1.0.152",
+ "shared-crypto",
  "sui-config",
  "sui-types",
  "tap",
@@ -9107,6 +9130,7 @@ dependencies = [
  "serde 1.0.152",
  "serde_json",
  "serde_with",
+ "shared-crypto",
  "signature 1.6.4",
  "strum",
  "strum_macros",
@@ -9153,6 +9177,7 @@ dependencies = [
  "rand 0.8.5",
  "serde 1.0.152",
  "serde_json",
+ "shared-crypto",
  "sui",
  "sui-adapter",
  "sui-config",
@@ -9453,6 +9478,7 @@ dependencies = [
  "serde_json",
  "serde_repr",
  "serde_with",
+ "shared-crypto",
  "signature 1.6.4",
  "static_assertions",
  "strum",
@@ -9752,6 +9778,7 @@ dependencies = [
  "prometheus",
  "rand 0.8.5",
  "serde_json",
+ "shared-crypto",
  "signature 1.6.4",
  "sui",
  "sui-adapter",
