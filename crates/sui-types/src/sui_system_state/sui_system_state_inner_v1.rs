@@ -18,6 +18,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+use super::epoch_start_sui_system_state::multiaddr_to_anemo_address;
 use super::sui_system_state_summary::{SuiSystemStateSummary, SuiValidatorSummary};
 use super::SuiSystemStateTrait;
 
@@ -109,6 +110,8 @@ impl ValidatorMetadataV1 {
             .map_err(|_| E_METADATA_INVALID_NET_ADDR)?;
         let p2p_address = Multiaddr::try_from(self.p2p_address.clone())
             .map_err(|_| E_METADATA_INVALID_P2P_ADDR)?;
+        // Also make sure that the p2p address is a valid anemo address.
+        multiaddr_to_anemo_address(&p2p_address).ok_or(E_METADATA_INVALID_P2P_ADDR)?;
         let primary_address = Multiaddr::try_from(self.primary_address.clone())
             .map_err(|_| E_METADATA_INVALID_PRIMARY_ADDR)?;
         let worker_address = Multiaddr::try_from(self.worker_address.clone())

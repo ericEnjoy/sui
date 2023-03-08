@@ -4,7 +4,8 @@
 use std::collections::{BTreeMap, HashMap};
 
 use crate::base_types::{AuthorityName, EpochId, SuiAddress};
-use crate::committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata, StakeUnit};
+use crate::committee::{Committee, StakeUnit};
+use anemo::types::{PeerAffinity, PeerInfo};
 use anemo::PeerId;
 use multiaddr::Multiaddr;
 use narwhal_config::{Committee as NarwhalCommittee, WorkerCache, WorkerIndex};
@@ -44,21 +45,16 @@ impl EpochStartSystemState {
         }
     }
 
-    pub fn get_sui_committee(&self) -> CommitteeWithNetworkMetadata {
-        let mut voting_rights = BTreeMap::new();
-        let mut network_metadata = BTreeMap::new();
-        for validator in &self.active_validators {
-            let (name, voting_stake, metadata) = validator.to_stake_and_network_metadata();
-            voting_rights.insert(name, voting_stake);
-            network_metadata.insert(name, metadata);
-        }
-        CommitteeWithNetworkMetadata {
-            committee: Committee::new(self.epoch, voting_rights)
-                // unwrap is safe because we should have verified the committee on-chain.
-                // TODO: Make sure we actually verify it.
-                .unwrap(),
-            network_metadata,
-        }
+    pub fn get_sui_committee(&self) -> Committee {
+        let voting_rights = self
+            .active_validators
+            .iter()
+            .map(|validator| (validator.authority_name(), validator.voting_power))
+            .collect();
+        Committee::new(self.epoch, voting_rights)
+            // unwrap is safe because we should have verified the committee on-chain.
+            // TODO: Make sure we actually verify it.
+            .unwrap()
     }
 
     #[allow(clippy::mutable_key_type)]
@@ -80,6 +76,19 @@ impl EpochStartSystemState {
             authorities: narwhal_committee,
             epoch: self.epoch as narwhal_config::Epoch,
         }
+    }
+
+    pub fn get_validator_as_p2p_peers(&self, excluding_self: AuthorityName) -> Vec<PeerInfo> {
+        self.active_validators
+            .iter()
+            .filter(|validator| validator.authority_name() != excluding_self)
+            .map(|validator| PeerInfo {
+                peer_id: PeerId(validator.narwhal_network_pubkey.0.to_bytes()),
+                affinity: PeerAffinity::High,
+                address: vec![multiaddr_to_anemo_address(&validator.p2p_address)
+                    .expect("p2p address must be valid anemo address and verified on-chain")],
+            })
+            .collect()
     }
 
     pub fn get_authority_names_to_peer_ids(&self) -> HashMap<AuthorityName, PeerId> {
@@ -136,18 +145,28 @@ pub struct EpochStartValidatorInfo {
 }
 
 impl EpochStartValidatorInfo {
-    pub fn to_stake_and_network_metadata(&self) -> (AuthorityName, StakeUnit, NetworkMetadata) {
-        (
-            (&self.protocol_pubkey).into(),
-            self.voting_power,
-            NetworkMetadata {
-                network_pubkey: self.narwhal_network_pubkey.clone(),
-                network_address: self.sui_net_address.clone(),
-                p2p_address: self.p2p_address.clone(),
-            },
-        )
-    }
     pub fn authority_name(&self) -> AuthorityName {
         (&self.protocol_pubkey).into()
+    }
+}
+
+pub fn multiaddr_to_anemo_address(multiaddr: &Multiaddr) -> Option<anemo::types::Address> {
+    use multiaddr::Protocol;
+    let mut iter = multiaddr.iter();
+
+    match (iter.next(), iter.next(), iter.next()) {
+        (Some(Protocol::Ip4(ipaddr)), Some(Protocol::Udp(port)), None) => {
+            Some((ipaddr, port).into())
+        }
+        (Some(Protocol::Ip6(ipaddr)), Some(Protocol::Udp(port)), None) => {
+            Some((ipaddr, port).into())
+        }
+        (Some(Protocol::Dns(hostname)), Some(Protocol::Udp(port)), None) => {
+            Some((hostname.as_ref(), port).into())
+        }
+        _ => {
+            tracing::warn!("unsupported p2p multiaddr: '{multiaddr}'");
+            None
+        }
     }
 }
