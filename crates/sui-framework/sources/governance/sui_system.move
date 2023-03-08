@@ -171,6 +171,8 @@ module sui::sui_system {
     /// The amount of stake in the `validator` object must meet the requirements.
     // TODO: Does this need to go through a voting process? Any other criteria for
     // someone to become a validator?
+    // proof_of_possession MUST a valid signature using sui_address and protocol_pubkey_bytes. 
+    // To produce a valid pop, run [fn test_proof_of_possession]. 
     public entry fun request_add_validator(
         wrapper: &mut SuiSystemState,
         pubkey_bytes: vector<u8>,

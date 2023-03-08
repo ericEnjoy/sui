@@ -7,6 +7,7 @@ use crate::collection_types::{MoveOption, Table, TableVec, VecMap, VecSet};
 use crate::committee::{
     Committee, CommitteeWithNetworkMetadata, NetworkMetadata, ProtocolVersion, StakeUnit,
 };
+use crate::crypto::verify_proof_of_possession;
 use crate::crypto::AuthorityPublicKeyBytes;
 use crate::sui_system_state::epoch_start_sui_system_state::{
     EpochStartSystemState, EpochStartValidatorInfo,
@@ -28,6 +29,7 @@ const E_METADATA_INVALID_NET_ADDR: u64 = 4;
 const E_METADATA_INVALID_P2P_ADDR: u64 = 5;
 const E_METADATA_INVALID_PRIMARY_ADDR: u64 = 6;
 const E_METADATA_INVALID_WORKER_ADDR: u64 = 7;
+const E_METADATA_INVALID_POP: u64 = 9;
 
 /// Rust version of the Move sui::sui_system::SystemParameters type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
@@ -94,11 +96,16 @@ pub struct VerifiedValidatorMetadataV1 {
 impl ValidatorMetadataV1 {
     /// Verify validator metadata and return a verified version (on success) or error code (on failure)
     pub fn verify(&self) -> Result<VerifiedValidatorMetadataV1, u64> {
-        // TODO: move the proof of possession verification here
-
         let protocol_pubkey =
             narwhal_crypto::PublicKey::from_bytes(self.protocol_pubkey_bytes.as_ref())
                 .map_err(|_| E_METADATA_INVALID_PUBKEY)?;
+
+        // Verify proof of possession for the protocol key
+        let pop = narwhal_crypto::Signature::from_bytes(self.proof_of_possession_bytes.as_ref())
+            .map_err(|_| E_METADATA_INVALID_POP)?;
+        verify_proof_of_possession(&pop, &protocol_pubkey, self.sui_address)
+            .map_err(|_| E_METADATA_INVALID_POP)?;
+
         let network_pubkey =
             narwhal_crypto::NetworkPublicKey::from_bytes(self.network_pubkey_bytes.as_ref())
                 .map_err(|_| E_METADATA_INVALID_NET_PUBKEY)?;
@@ -121,6 +128,25 @@ impl ValidatorMetadataV1 {
                     .map_err(|_| E_METADATA_INVALID_PUBKEY)?,
             )),
         }?;
+
+        let next_epoch_pop = match self.next_epoch_proof_of_possession.clone() {
+            None => Ok::<Option<narwhal_crypto::Signature>, u64>(None),
+            Some(bytes) => Ok(Some(
+                narwhal_crypto::Signature::from_bytes(bytes.as_ref())
+                    .map_err(|_| E_METADATA_INVALID_POP)?,
+            )),
+        }?;
+        // Verify proof of possession for the next epoch protocol key
+        if let Some(next_epoch_pop) = next_epoch_pop {
+            if let Some(ref next_epoch_protocol_pubkey) = next_epoch_protocol_pubkey {
+                verify_proof_of_possession(
+                    &next_epoch_pop,
+                    next_epoch_protocol_pubkey,
+                    self.sui_address,
+                )
+                .map_err(|_| E_METADATA_INVALID_POP)?;
+            }
+        }
 
         let next_epoch_network_pubkey = match self.next_epoch_network_pubkey_bytes.clone() {
             None => Ok::<Option<narwhal_crypto::NetworkPublicKey>, u64>(None),
