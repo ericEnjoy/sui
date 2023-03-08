@@ -5256,6 +5256,7 @@ name = "narwhal-crypto"
 version = "0.1.0"
 dependencies = [
  "ark-bls12-377",
+ "bcs",
  "bincode",
  "criterion",
  "eyre",
@@ -5272,6 +5273,7 @@ dependencies = [
  "serde_bytes",
  "serde_json",
  "serde_with",
+ "shared-crypto",
  "tokio",
  "workspace-hack",
  "zeroize",
@@ -5553,6 +5555,7 @@ dependencies = [
  "prometheus",
  "rand 0.8.5",
  "serde 1.0.152",
+ "shared-crypto",
  "telemetry-subscribers",
  "tempfile",
  "thiserror",
